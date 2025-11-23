@@ -5,7 +5,7 @@ from shapely.geometry import Polygon
 
 # Set precision for Decimal
 getcontext().prec = 25
-scale_factor = Decimal("1e15")
+SCALE_FACTOR = Decimal("1e15")
 
 
 class ChristmasTree:
@@ -31,37 +31,37 @@ class ChristmasTree:
         initial_polygon = Polygon(
             [
                 # Start at Tip
-                (Decimal("0.0") * scale_factor, tip_y * scale_factor),
+                (Decimal("0.0") * SCALE_FACTOR, tip_y * SCALE_FACTOR),
                 # Right side - Top Tier
-                (top_w / Decimal("2") * scale_factor, tier_1_y * scale_factor),
-                (top_w / Decimal("4") * scale_factor, tier_1_y * scale_factor),
+                (top_w / Decimal("2") * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
+                (top_w / Decimal("4") * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
                 # Right side - Middle Tier
-                (mid_w / Decimal("2") * scale_factor, tier_2_y * scale_factor),
-                (mid_w / Decimal("4") * scale_factor, tier_2_y * scale_factor),
+                (mid_w / Decimal("2") * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
+                (mid_w / Decimal("4") * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
                 # Right side - Bottom Tier
-                (base_w / Decimal("2") * scale_factor, base_y * scale_factor),
+                (base_w / Decimal("2") * SCALE_FACTOR, base_y * SCALE_FACTOR),
                 # Right Trunk
-                (trunk_w / Decimal("2") * scale_factor, base_y * scale_factor),
-                (trunk_w / Decimal("2") * scale_factor, trunk_bottom_y * scale_factor),
+                (trunk_w / Decimal("2") * SCALE_FACTOR, base_y * SCALE_FACTOR),
+                (trunk_w / Decimal("2") * SCALE_FACTOR, trunk_bottom_y * SCALE_FACTOR),
                 # Left Trunk
                 (
-                    -(trunk_w / Decimal("2")) * scale_factor,
-                    trunk_bottom_y * scale_factor,
+                    -(trunk_w / Decimal("2")) * SCALE_FACTOR,
+                    trunk_bottom_y * SCALE_FACTOR,
                 ),
-                (-(trunk_w / Decimal("2")) * scale_factor, base_y * scale_factor),
+                (-(trunk_w / Decimal("2")) * SCALE_FACTOR, base_y * SCALE_FACTOR),
                 # Left side - Bottom Tier
-                (-(base_w / Decimal("2")) * scale_factor, base_y * scale_factor),
+                (-(base_w / Decimal("2")) * SCALE_FACTOR, base_y * SCALE_FACTOR),
                 # Left side - Middle Tier
-                (-(mid_w / Decimal("4")) * scale_factor, tier_2_y * scale_factor),
-                (-(mid_w / Decimal("2")) * scale_factor, tier_2_y * scale_factor),
+                (-(mid_w / Decimal("4")) * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
+                (-(mid_w / Decimal("2")) * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
                 # Left side - Top Tier
-                (-(top_w / Decimal("4")) * scale_factor, tier_1_y * scale_factor),
-                (-(top_w / Decimal("2")) * scale_factor, tier_1_y * scale_factor),
+                (-(top_w / Decimal("4")) * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
+                (-(top_w / Decimal("2")) * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
             ]
         )
         rotated = affinity.rotate(initial_polygon, float(self.angle), origin=(0, 0))
         self.polygon = affinity.translate(
             rotated,
-            xoff=float(self.center_x * scale_factor),
-            yoff=float(self.center_y * scale_factor),
+            xoff=float(self.center_x * SCALE_FACTOR),
+            yoff=float(self.center_y * SCALE_FACTOR),
         )
