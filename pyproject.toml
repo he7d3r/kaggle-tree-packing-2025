@@ -1,0 +1,24 @@
+[project]
+name = "tree-packing"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Helder Geovane Gomes de Lima",email = "he7d3r@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas (==2.2.3)",
+    "numpy (==1.26.4)",
+    "matplotlib (==3.7.2)",
+    "shapely (==2.1.2)",
+    "jupyterlab (>=4.5.0,<5.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false
