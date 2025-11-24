@@ -10,7 +10,7 @@ from christmas_tree.christmas_tree import SCALE_FACTOR, ChristmasTree
 from plotter.plotter import plot_results
 
 
-def solve_all() -> list[list[float]]:
+def solve_all(rng: random.Random) -> list[list[float]]:
     """Solves the tree placement problem for 1 to 200 trees."""
     tree_data = []
     current_placed_trees = []  # Initialize an empty list for the first iteration
@@ -18,7 +18,7 @@ def solve_all() -> list[list[float]]:
     for n in range(200):
         # Pass the current_placed_trees to initialize_trees
         current_placed_trees, side = initialize_trees(
-            n + 1, existing_trees=current_placed_trees
+            n + 1, existing_trees=current_placed_trees, rng=rng
         )
         if (n + 1) % 10 == 0:
             plot_results(side, current_placed_trees, n + 1)
@@ -28,7 +28,9 @@ def solve_all() -> list[list[float]]:
 
 
 def initialize_trees(
-    num_trees: int, existing_trees: list[ChristmasTree] | None = None
+    num_trees: int,
+    existing_trees: list[ChristmasTree] | None,
+    rng: random.Random,
 ) -> tuple[list[ChristmasTree], Decimal]:
     """
     This builds a simple, greedy starting configuration, by using the previous n-tree
@@ -42,16 +44,13 @@ def initialize_trees(
     if num_trees == 0:
         return [], Decimal("0")
 
-    if existing_trees is None:
-        placed_trees = []
-    else:
-        placed_trees = list(existing_trees)
+    placed_trees = list(existing_trees) if existing_trees else []
 
     num_to_add = num_trees - len(placed_trees)
 
     if num_to_add > 0:
         unplaced_trees = [
-            ChristmasTree(angle=str(random.uniform(0, 360))) for _ in range(num_to_add)
+            ChristmasTree(angle=str(rng.uniform(0, 360))) for _ in range(num_to_add)
         ]
         if (
             not placed_trees
@@ -69,7 +68,7 @@ def initialize_trees(
             # This loop tries 10 random starting attempts and keeps the best one
             for _ in range(10):
                 # The new tree starts at a position 20 from the center, at a random vector angle.
-                angle = generate_weighted_angle()
+                angle = generate_weighted_angle(rng)
                 vx = Decimal(str(math.cos(angle)))
                 vy = Decimal(str(math.sin(angle)))
 
@@ -161,12 +160,12 @@ def initialize_trees(
     return placed_trees, side_length
 
 
-def generate_weighted_angle() -> float:
+def generate_weighted_angle(rng: random.Random) -> float:
     """
     Generates a random angle with a distribution weighted by abs(sin(2*angle)).
     This helps place more trees in corners, and makes the packing less round.
     """
     while True:
-        angle = random.uniform(0, 2 * math.pi)
-        if random.uniform(0, 1) < abs(math.sin(2 * angle)):
+        angle = rng.uniform(0, 2 * math.pi)
+        if rng.uniform(0, 1) < abs(math.sin(2 * angle)):
             return angle
