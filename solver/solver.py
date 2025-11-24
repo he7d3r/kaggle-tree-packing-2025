@@ -5,6 +5,7 @@ from decimal import Decimal
 from shapely import affinity
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+from tqdm import tqdm
 
 from christmas_tree.christmas_tree import SCALE_FACTOR, ChristmasTree
 from plotter.plotter import plot_results
@@ -15,7 +16,7 @@ def solve_all(rng: random.Random) -> list[list[float]]:
     tree_data = []
     current_placed_trees = []  # Initialize an empty list for the first iteration
 
-    for n in range(200):
+    for n in tqdm(range(200), desc="Placing trees"):
         # Pass the current_placed_trees to initialize_trees
         current_placed_trees, side = initialize_trees(
             n + 1, existing_trees=current_placed_trees, rng=rng
