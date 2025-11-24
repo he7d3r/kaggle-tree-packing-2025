@@ -62,8 +62,8 @@ def initialize_trees(
             placed_polygons = [p.polygon for p in placed_trees]
             tree_index = STRtree(placed_polygons)
 
-            best_px = None
-            best_py = None
+            best_px = Decimal("0")
+            best_py = Decimal("0")
             min_radius = Decimal("Infinity")
 
             # This loop tries 10 random starting attempts and keeps the best one
