@@ -7,7 +7,7 @@ from submission.submission import make_submission_df
 def main() -> None:
     rng = random.Random(42)
     tree_data = solve_all(rng)
-    output_file = "sample_submission.csv"
+    output_file = "submission.csv"
     df = make_submission_df(tree_data)
     df.to_csv(output_file)
     print(f"Submission saved to {output_file}")
