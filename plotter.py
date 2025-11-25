@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from shapely.ops import unary_union
 
-from christmas_tree.christmas_tree import SCALE_FACTOR, ChristmasTree
+from christmas_tree import SCALE_FACTOR, ChristmasTree
 
 
 def plot_results(

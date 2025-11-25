@@ -14,7 +14,7 @@ import pandas as pd
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
-from christmas_tree.christmas_tree import ChristmasTree
+from christmas_tree import ChristmasTree
 
 # Decimal precision and scaling factor
 getcontext().prec = 25

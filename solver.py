@@ -7,8 +7,8 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree.christmas_tree import SCALE_FACTOR, ChristmasTree
-from plotter.plotter import plot_results
+from christmas_tree import SCALE_FACTOR, ChristmasTree
+from plotter import plot_results
 
 
 def solve_all(rng: random.Random) -> list[list[float]]:

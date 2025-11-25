@@ -1,8 +1,8 @@
 import random
 
-from metric.metric import score
-from solver.solver import solve_all
-from submission.submission import make_submission_df
+from metric import score
+from solver import solve_all
+from submission import make_submission_df
 
 
 def main() -> None:
