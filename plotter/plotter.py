@@ -72,8 +72,12 @@ def plot_results(
     ax.add_patch(bounding_square)
 
     padding = Decimal("0.5")
-    ax.set_xlim(float(square_x - padding), float(square_x + side_length + padding))
-    ax.set_ylim(float(square_y - padding), float(square_y + side_length + padding))
+    ax.set_xlim(
+        float(square_x - padding), float(square_x + side_length + padding)
+    )
+    ax.set_ylim(
+        float(square_y - padding), float(square_y + side_length + padding)
+    )
     ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
     plt.title(f"{num_trees} Trees: {side_length:.12f}")

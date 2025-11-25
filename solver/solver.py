@@ -51,7 +51,8 @@ def initialize_trees(
 
     if num_to_add > 0:
         unplaced_trees = [
-            ChristmasTree(angle=str(rng.uniform(0, 360))) for _ in range(num_to_add)
+            ChristmasTree(angle=str(rng.uniform(0, 360)))
+            for _ in range(num_to_add)
         ]
         if (
             not placed_trees
@@ -120,7 +121,9 @@ def initialize_trees(
                         if not any(
                             (
                                 candidate_poly.intersects(placed_polygons[i])
-                                and not candidate_poly.touches(placed_polygons[i])
+                                and not candidate_poly.touches(
+                                    placed_polygons[i]
+                                )
                             )
                             for i in possible_indices
                         ):
@@ -143,7 +146,10 @@ def initialize_trees(
                 xoff=float(tree_to_place.center_x * SCALE_FACTOR),
                 yoff=float(tree_to_place.center_y * SCALE_FACTOR),
             )
-            placed_trees.append(tree_to_place)  # Add the newly placed tree to the list
+            # Add the newly placed tree to the list
+            placed_trees.append(
+                tree_to_place
+            )
 
     all_polygons = [t.polygon for t in placed_trees]
     bounds = unary_union(all_polygons).bounds
