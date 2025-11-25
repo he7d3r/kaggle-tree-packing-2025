@@ -8,18 +8,14 @@ A scaling factor is used to maintain reasonably precise floating point
 calculations in the shapely (v 2.1.2) library.
 """
 
-from decimal import Decimal, getcontext
+from decimal import Decimal
 
 import pandas as pd
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree
-
-# Decimal precision and scaling factor
-getcontext().prec = 25
-scale_factor = Decimal("1e18")
+from christmas_tree import SCALE_FACTOR, ChristmasTree
 
 
 class ParticipantVisibleError(Exception):
@@ -105,7 +101,7 @@ def score(submission: pd.DataFrame) -> float:
 
         group_score = (
             (Decimal(side_length_scaled) ** 2)
-            / (scale_factor**2)
+            / (SCALE_FACTOR**2)
             / Decimal(num_trees)
         )
         total_score += group_score
