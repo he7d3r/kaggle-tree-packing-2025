@@ -13,6 +13,7 @@ from decimal import Decimal, getcontext
 import pandas as pd
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+from tqdm import tqdm
 
 from christmas_tree import ChristmasTree
 
@@ -70,7 +71,9 @@ def score(submission: pd.DataFrame) -> float:
     submission["tree_count_group"] = submission["id"].str.split("_").str[0]
 
     total_score = Decimal("0.0")
-    for group, df_group in submission.groupby("tree_count_group"):
+    for group, df_group in tqdm(
+        list(submission.groupby("tree_count_group")), desc="Scoring groups"
+    ):
         num_trees = len(df_group)
 
         # Create tree objects from the submission values
