@@ -147,9 +147,7 @@ def initialize_trees(
                 yoff=float(tree_to_place.center_y * SCALE_FACTOR),
             )
             # Add the newly placed tree to the list
-            placed_trees.append(
-                tree_to_place
-            )
+            placed_trees.append(tree_to_place)
 
     all_polygons = [t.polygon for t in placed_trees]
     bounds = unary_union(all_polygons).bounds

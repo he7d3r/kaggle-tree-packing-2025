@@ -1,5 +1,6 @@
 import random
 
+from metric.metric import score
 from solver.solver import solve_all
 from submission.submission import make_submission_df
 
@@ -9,6 +10,8 @@ def main() -> None:
     tree_data = solve_all(rng)
     output_file = "submission.csv"
     df = make_submission_df(tree_data)
+    submission_score = score(df.reset_index())
+    print(f"Submission score: {submission_score}")
     df.to_csv(output_file)
     print(f"Submission saved to {output_file}")
 
