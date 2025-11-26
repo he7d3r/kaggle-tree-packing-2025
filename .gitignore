@@ -3,3 +3,4 @@ data
 .vscode
 .ipynb_checkpoints
 .ruff_cache
+mlruns
