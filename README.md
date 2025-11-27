@@ -25,6 +25,6 @@ Then use the Kernel available at the informed URL `http://127.0.0.1:8888/lab?tok
 In another terminal, open the MLFlow UI with:
 
 ```shell
-mlflow ui --port 5000
+mlflow ui --port 5000 --backend-store-uri sqlite:///mlruns.db
 ```
 and open the informed URL <http://127.0.0.1:5000>.

@@ -4,3 +4,4 @@ data
 .ipynb_checkpoints
 .ruff_cache
 mlruns
+mlruns.db
