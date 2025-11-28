@@ -11,7 +11,6 @@ from christmas_tree import SCALE_FACTOR, ChristmasTree
 def plot_results(
     side_length: Decimal,
     placed_trees: list[ChristmasTree],
-    num_trees: int,
     output_dir: str | Path | None = "images",
     filename: str | None = None,
     show: bool = False,
@@ -26,8 +25,6 @@ def plot_results(
         Side length of the bounding square.
     placed_trees : list[ChristmasTree]
         Trees that were placed.
-    num_trees : int
-        Number of trees.
     output_dir : str | Path | None
         Directory where the plot should be saved. If None, saving is skipped.
     filename : str | None
@@ -35,6 +32,7 @@ def plot_results(
     show : bool
         Whether to display the image on screen.
     """
+    num_trees = len(placed_trees)
     fig, ax = plt.subplots(figsize=(6, 6))
     colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])  # type: ignore
 

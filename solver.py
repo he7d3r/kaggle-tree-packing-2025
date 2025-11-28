@@ -22,7 +22,7 @@ def solve_all(rng: random.Random) -> list[list[float]]:
             n + 1, existing_trees=current_placed_trees, rng=rng
         )
         if (n + 1) % 10 == 0:
-            plot_results(side, current_placed_trees, n + 1)
+            plot_results(side, current_placed_trees)
         for tree in current_placed_trees:
             tree_data.append([tree.center_x, tree.center_y, tree.angle])
     return tree_data
