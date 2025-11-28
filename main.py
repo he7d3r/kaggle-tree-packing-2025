@@ -4,6 +4,7 @@ import mlflow
 import pandas as pd
 
 from metric import score
+from plotter import Plotter
 from solver import solve_all
 from submission import make_submission_df
 
@@ -16,7 +17,8 @@ def main() -> None:
     with mlflow.start_run():
         try:
             rng = random.Random(42)
-            tree_data = solve_all(rng)
+            plotter = Plotter()
+            tree_data = solve_all(rng, plotter)
             df = make_submission_df(tree_data)
             df.to_csv(OUTPUT_FILE)
             print(f"Submission saved to {OUTPUT_FILE}")

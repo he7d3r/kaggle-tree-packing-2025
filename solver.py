@@ -3,27 +3,26 @@ import random
 from decimal import Decimal
 
 from shapely import affinity
-from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, ChristmasTree
-from plotter import plot_results
+from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
+from plotter import Plotter
 
 
-def solve_all(rng: random.Random) -> list[list[float]]:
+def solve_all(rng: random.Random, plotter: Plotter) -> list[list[float]]:
     """Solves the tree placement problem for 1 to 200 trees."""
     tree_data = []
     current_placed_trees = []  # Initialize an empty list for the first iteration
 
     for n in tqdm(range(200), desc="Placing trees"):
         # Pass the current_placed_trees to initialize_trees
-        current_placed_trees, side = initialize_trees(
+        tree_packing = initialize_trees(
             n + 1, existing_trees=current_placed_trees, rng=rng
         )
         if (n + 1) % 10 == 0:
-            plot_results(side, current_placed_trees)
-        for tree in current_placed_trees:
+            plotter.plot(tree_packing)
+        for tree in tree_packing.trees:
             tree_data.append([tree.center_x, tree.center_y, tree.angle])
     return tree_data
 
@@ -32,7 +31,7 @@ def initialize_trees(
     num_trees: int,
     existing_trees: list[ChristmasTree] | None,
     rng: random.Random,
-) -> tuple[list[ChristmasTree], Decimal]:
+) -> TreePacking:
     """
     This builds a simple, greedy starting configuration, by using the previous n-tree
     placements, and adding more tree for the (n+1)-tree configuration. We place a tree
@@ -42,12 +41,11 @@ def initialize_trees(
     You can easily modify this code to build each n-tree configuration completely
     from scratch.
     """
+    tree_packing = TreePacking(existing_trees)
     if num_trees == 0:
-        return [], Decimal("0")
+        return tree_packing
 
-    placed_trees = list(existing_trees) if existing_trees else []
-
-    num_to_add = num_trees - len(placed_trees)
+    num_to_add = num_trees - len(tree_packing.trees)
 
     if num_to_add > 0:
         unplaced_trees = [
@@ -55,12 +53,12 @@ def initialize_trees(
             for _ in range(num_to_add)
         ]
         if (
-            not placed_trees
+            not tree_packing.trees
         ):  # Only place the first tree at origin if starting from scratch
-            placed_trees.append(unplaced_trees.pop(0))
+            tree_packing.add_tree(unplaced_trees.pop(0))
 
         for tree_to_place in unplaced_trees:
-            placed_polygons = [p.polygon for p in placed_trees]
+            placed_polygons = [p.polygon for p in tree_packing.trees]
             tree_index = STRtree(placed_polygons)
 
             best_px = Decimal("0")
@@ -147,22 +145,9 @@ def initialize_trees(
                 yoff=float(tree_to_place.center_y * SCALE_FACTOR),
             )
             # Add the newly placed tree to the list
-            placed_trees.append(tree_to_place)
+            tree_packing.add_tree(tree_to_place)
 
-    all_polygons = [t.polygon for t in placed_trees]
-    bounds = unary_union(all_polygons).bounds
-
-    minx = Decimal(bounds[0]) / SCALE_FACTOR
-    miny = Decimal(bounds[1]) / SCALE_FACTOR
-    maxx = Decimal(bounds[2]) / SCALE_FACTOR
-    maxy = Decimal(bounds[3]) / SCALE_FACTOR
-
-    width = maxx - minx
-    height = maxy - miny
-    # this forces a square bounding using the largest side
-    side_length = max(width, height)
-
-    return placed_trees, side_length
+    return tree_packing
 
 
 def generate_weighted_angle(rng: random.Random) -> float:

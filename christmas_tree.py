@@ -2,6 +2,7 @@ from decimal import Decimal, getcontext
 
 from shapely import affinity
 from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 # Set precision for Decimal
 getcontext().prec = 25
@@ -88,3 +89,34 @@ class ChristmasTree:
             xoff=float(self.center_x * SCALE_FACTOR),
             yoff=float(self.center_y * SCALE_FACTOR),
         )
+
+
+class TreePacking:
+    def __init__(self, trees: list[ChristmasTree] | None = None):
+        self.trees = trees if trees is not None else []
+
+    def add_tree(self, tree: ChristmasTree) -> None:
+        self.trees.append(tree)
+
+    @property
+    def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        all_polygons = [t.polygon for t in self.trees]
+        bounds = unary_union(all_polygons).bounds
+
+        minx = Decimal(bounds[0]) / SCALE_FACTOR
+        miny = Decimal(bounds[1]) / SCALE_FACTOR
+        maxx = Decimal(bounds[2]) / SCALE_FACTOR
+        maxy = Decimal(bounds[3]) / SCALE_FACTOR
+        return minx, miny, maxx, maxy
+
+    @property
+    def sides(self) -> tuple[Decimal, Decimal]:
+        minx, miny, maxx, maxy = self.bounds
+        width = maxx - minx
+        height = maxy - miny
+        return width, height
+
+    @property
+    def side_length(self) -> Decimal:
+        # Force a square bounding with the largest side
+        return max(self.sides)
