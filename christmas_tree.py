@@ -105,9 +105,7 @@ class TreePacking:
 
     @property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        all_polygons = [t.polygon for t in self.trees]
-        bounds = unary_union(all_polygons).bounds
-
+        bounds = unary_union(self.polygons).bounds
         minx = Decimal(bounds[0]) / SCALE_FACTOR
         miny = Decimal(bounds[1]) / SCALE_FACTOR
         maxx = Decimal(bounds[2]) / SCALE_FACTOR
@@ -125,3 +123,7 @@ class TreePacking:
     def side_length(self) -> Decimal:
         # Force a square bounding with the largest side
         return max(self.sides)
+
+    @property
+    def polygons(self) -> list[Polygon]:
+        return [t.polygon for t in self.trees]

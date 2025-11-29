@@ -54,7 +54,7 @@ def initialize_trees(
             tree_packing.add_tree(unplaced_trees.pop(0))
 
         for tree_to_place in unplaced_trees:
-            placed_polygons = [p.polygon for p in tree_packing.trees]
+            placed_polygons = tree_packing.polygons
             tree_index = STRtree(placed_polygons)
 
             best_px = Decimal("0")
