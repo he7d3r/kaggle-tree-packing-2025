@@ -8,7 +8,7 @@ import pandas as pd
 
 from metric import score
 from plotter import Plotter
-from solver import solve_all
+from solver import BaselineIncrementalSolver
 from submission import make_submission_df
 
 OUTPUT_FILE = "submission.csv"
@@ -51,7 +51,8 @@ def main() -> None:
     try:
         rng = random.Random(42)
         plotter = Plotter()
-        tree_data = solve_all(rng, plotter)
+        solver = BaselineIncrementalSolver()
+        tree_data = solver.solve_all(rng, plotter)
         df = make_submission_df(tree_data)
 
         if not args.draft:
