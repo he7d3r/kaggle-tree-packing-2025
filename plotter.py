@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-from christmas_tree import SCALE_FACTOR, TreePacking
+from christmas_tree import SCALE_FACTOR, NTree
 
 
 class Plotter:
@@ -25,21 +25,21 @@ class Plotter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.filename_format = filename_format
 
-    def plot(self, tree_packing: TreePacking) -> None:
+    def plot(self, n_tree: NTree) -> None:
         """
         Plot the arrangement of trees and the bounding square.
         Optionally save the image to a directory.
 
         Parameters
         ----------
-        tree_packing : TreePacking
-            The TreePacking object containing the trees to plot.
+        n_tree : NTree
+            The NTree object containing the trees to plot.
         """
-        num_trees = tree_packing.tree_count
+        num_trees = n_tree.tree_count
         fig, ax = plt.subplots(figsize=(6, 6))
         colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])  # type: ignore
 
-        for i, tree in enumerate(tree_packing.trees):
+        for i, tree in enumerate(n_tree.trees):
             # Rescale for plotting
             x_scaled, y_scaled = tree.polygon.exterior.xy
             x = [Decimal(val) / SCALE_FACTOR for val in x_scaled]
@@ -47,8 +47,8 @@ class Plotter:
             ax.plot(x, y, color=colors[i])
             ax.fill(x, y, alpha=0.5, color=colors[i])
 
-        side_length = tree_packing.side_length
-        minx, miny, _, _ = tree_packing.bounds
+        side_length = n_tree.side_length
+        minx, miny, _, _ = n_tree.bounds
 
         bounding_square = Rectangle(
             (float(minx), float(miny)),

@@ -2,29 +2,29 @@ from typing import Any
 
 import pandas as pd
 
-from christmas_tree import TreePacking
+from christmas_tree import NTree
 
 
-class Submission:
-    def __init__(self, packs: list[TreePacking] | None = None):
-        self.packs = packs if packs else []
+class Solution:
+    def __init__(self, n_trees: list[NTree] | None = None):
+        self.n_trees = n_trees if n_trees else []
 
-    def add(self, pack: TreePacking) -> None:
-        self.packs.append(pack)
+    def add(self, n_tree: NTree) -> None:
+        self.n_trees.append(n_tree)
 
     def to_dataframe(self) -> pd.DataFrame:
-        """Creates a submission DataFrame from the tree data."""
+        """Creates a submission DataFrame from the Solution's n_trees data."""
         data = [
             {
                 # Build the index of the submission, in the format:
                 #  <trees_in_problem>_<tree_index>
-                "id": f"{pack.tree_count:03d}_{t}",
+                "id": f"{n_tree.tree_count:03d}_{t}",
                 "x": tree.center_x,
                 "y": tree.center_y,
                 "deg": tree.angle,
             }
-            for pack in self.packs
-            for t, tree in enumerate(pack.trees)
+            for n_tree in self.n_trees
+            for t, tree in enumerate(n_tree.trees)
         ]
         df = pd.DataFrame(data).set_index("id").astype(float).round(decimals=6)
 
@@ -34,14 +34,14 @@ class Submission:
         return df
 
     @staticmethod
-    def from_dataframe(df: pd.DataFrame) -> "Submission":
-        """Populates the Submission object from a DataFrame."""
+    def from_dataframe(df: pd.DataFrame) -> "Solution":
+        """Populates the Solution object from a DataFrame."""
         df = df.apply(lambda col: col.str.lstrip("s"))
-        packs = [
-            TreePacking.from_dataframe(group_df)
-            for _, group_df in Submission.groups(df)
+        n_trees = [
+            NTree.from_dataframe(group_df)
+            for _, group_df in Solution.groups(df)
         ]
-        return Submission(packs)
+        return Solution(n_trees)
 
     @staticmethod
     def groups(df: pd.DataFrame) -> Any:

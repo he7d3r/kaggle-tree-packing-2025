@@ -7,9 +7,9 @@ from shapely import affinity
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
+from christmas_tree import SCALE_FACTOR, ChristmasTree, NTree
 from plotter import Plotter
-from submission import Submission
+from solution import Solution
 
 MAX_TREE_COUNT = 200
 
@@ -18,23 +18,21 @@ class BaselineIncrementalSolver:
     def __init__(self, rng: random.Random) -> None:
         self.rng = rng
 
-    def solve_all(self, plotter: Plotter) -> Submission:
+    def solve_all(self, plotter: Plotter) -> Solution:
         """Solves the tree placement problem for 1 to 200 trees."""
-        submission = Submission()
+        solution = Solution()
         # Initialize an empty list for the first iteration
-        tree_packing = TreePacking()
+        n_tree = NTree()
 
         for n in tqdm(range(MAX_TREE_COUNT), desc="Placing trees"):
-            # Pass the current packing to initialize_trees
-            tree_packing = self.solve(tree_packing, batch_size=1)
+            # Pass the current n_tree to initialize_trees
+            n_tree = self.solve(n_tree, batch_size=1)
             if (n + 1) % 10 == 0:
-                plotter.plot(tree_packing)
-            submission.add(copy.deepcopy(tree_packing))
-        return submission
+                plotter.plot(n_tree)
+            solution.add(copy.deepcopy(n_tree))
+        return solution
 
-    def solve(
-        self, existing_trees: TreePacking, batch_size: int = 1
-    ) -> TreePacking:
+    def solve(self, existing_trees: NTree, batch_size: int = 1) -> NTree:
         """
         This builds a simple, greedy starting configuration, by using the previous n-tree
         placements, and adding more tree for the (n+1)-tree configuration. We place a tree
@@ -151,7 +149,7 @@ class BaselineIncrementalSolver:
     def generate_weighted_angle(self) -> float:
         """
         Generates a random angle with a distribution weighted by abs(sin(2*angle)).
-        This helps place more trees in corners, and makes the packing less round.
+        This helps place more trees in corners, and makes the n_tree less round.
         """
         while True:
             angle = self.rng.uniform(0, 2 * math.pi)

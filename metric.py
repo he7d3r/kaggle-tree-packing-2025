@@ -16,8 +16,8 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, TreePacking
-from submission import Submission
+from christmas_tree import SCALE_FACTOR, NTree
+from solution import Solution
 
 
 class ParticipantVisibleError(Exception):
@@ -29,7 +29,7 @@ class BaseScorer:
         raise NotImplementedError
 
     def _score_group(self, name: str, polygons: list[Polygon]) -> Decimal:
-        # Create tree objects from the submission values and
+        # Create tree objects from the solution values and
         # check for collisions using neighborhood search
         r_tree = STRtree(polygons)
 
@@ -61,7 +61,7 @@ class BaseScorer:
 
 
 class DataFrameScorer(BaseScorer):
-    def score(self, submission: pd.DataFrame) -> float:
+    def score(self, submission_df: pd.DataFrame) -> float:
         """
         For each n-tree configuration, the metric calculates the bounding square
         volume divided by n, summed across all configurations.
@@ -73,20 +73,20 @@ class DataFrameScorer(BaseScorer):
         >>> import pandas as pd
         >>> row_id_column_name = 'id'
         >>> data = [['002_0', 's-0.2', 's-0.3', 's335'], ['002_1', 's0.49', 's0.21', 's155']]
-        >>> submission = pd.DataFrame(columns=['id', 'x', 'y', 'deg'], data=data)
-        >>> solution = submission[['id']].copy()
-        >>> score(solution, submission, row_id_column_name)
+        >>> submission_df = pd.DataFrame(columns=['id', 'x', 'y', 'deg'], data=data)
+        >>> solution = submission_df[['id']].copy()
+        >>> score(solution, submission_df, row_id_column_name)
         0.877038143325...
         """
-        submission = self._remove_leading_s_prefix(submission)
-        self._validate_limits(submission)
+        submission_df = self._remove_leading_s_prefix(submission_df)
+        self._validate_limits(submission_df)
 
         # grouping puzzles to score
-        grouped = Submission.groups(submission)
+        grouped = Solution.groups(submission_df)
         total_score = Decimal("0.0")
         for group, df_group in tqdm(list(grouped), desc="Scoring groups"):
             name = str(group)
-            polygons = TreePacking.from_dataframe(df_group).polygons
+            polygons = NTree.from_dataframe(df_group).polygons
             total_score += self._score_group(name, polygons)
 
         return float(total_score)
@@ -110,12 +110,12 @@ class DataFrameScorer(BaseScorer):
             )
 
 
-class SubmissionScorer(BaseScorer):
-    def score(self, submission: Submission) -> float:
-        """Scores a Submission object."""
+class SolutionScorer(BaseScorer):
+    def score(self, solution: Solution) -> float:
+        """Scores a Solution object."""
         total_score = Decimal("0.0")
-        for pack in tqdm(submission.packs, desc="Scoring packs"):
-            name = f"{pack.tree_count:03d}"
-            polygons = pack.polygons
+        for n_tree in tqdm(solution.n_trees, desc="Scoring"):
+            name = f"{n_tree.tree_count:03d}"
+            polygons = n_tree.polygons
             total_score += self._score_group(name, polygons)
         return float(total_score)

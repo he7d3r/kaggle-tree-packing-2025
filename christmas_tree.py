@@ -93,7 +93,7 @@ class ChristmasTree:
         )
 
 
-class TreePacking:
+class NTree:
     def __init__(
         self, trees: list[ChristmasTree] | None = None, deepcopy: bool = False
     ):
@@ -134,11 +134,11 @@ class TreePacking:
         return len(self.trees)
 
     @staticmethod
-    def from_dataframe(df: pd.DataFrame) -> "TreePacking":
+    def from_dataframe(df: pd.DataFrame) -> "NTree":
         trees = [
             ChristmasTree(
                 center_x=row["x"], center_y=row["y"], angle=row["deg"]
             )
             for _, row in df.iterrows()
         ]
-        return TreePacking(trees)
+        return NTree(trees)
