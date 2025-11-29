@@ -1,6 +1,8 @@
+from typing import Any
+
 import pandas as pd
 
-from christmas_tree import ChristmasTree, TreePacking
+from christmas_tree import TreePacking
 
 
 class Submission:
@@ -35,8 +37,13 @@ class Submission:
     def from_dataframe(df: pd.DataFrame) -> "Submission":
         """Populates the Submission object from a DataFrame."""
         df = df.apply(lambda col: col.str.lstrip("s"))
-        grouped = df.groupby(df.index.str.split("_").str[0])
         packs = [
-            TreePacking.from_dataframe(group_df) for _, group_df in grouped
+            TreePacking.from_dataframe(group_df)
+            for _, group_df in Submission.groups(df)
         ]
         return Submission(packs)
+
+    @staticmethod
+    def groups(df: pd.DataFrame) -> Any:
+        """Extracts groups of trees from the DataFrame."""
+        return df.groupby(df.index.astype(str).str.split("_").str[0])

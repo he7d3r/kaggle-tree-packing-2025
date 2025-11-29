@@ -15,7 +15,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
+from christmas_tree import SCALE_FACTOR, TreePacking
 from submission import Submission
 
 
@@ -45,14 +45,9 @@ class Scorer:
         self._validate_limits(submission)
 
         # grouping puzzles to score
-        submission["tree_count_group"] = (
-            submission.index.astype(str).str.split("_").str[0]
-        )
-
+        grouped = Submission.groups(submission)
         total_score = Decimal("0.0")
-        for group, df_group in tqdm(
-            list(submission.groupby("tree_count_group")), desc="Scoring groups"
-        ):
+        for group, df_group in tqdm(list(grouped), desc="Scoring groups"):
             total_score += self._score_group(str(group), df_group)
 
         return float(total_score)
