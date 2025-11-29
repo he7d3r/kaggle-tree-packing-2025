@@ -86,12 +86,11 @@ class DataFrameScorer(BaseScorer):
 
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.astype(str)
-        for c in ["x", "y", "deg"]:
-            if not df[c].str.startswith("s").all():
-                raise ParticipantVisibleError(
-                    f"Value(s) in column {c} found without `s` prefix."
-                )
-            df[c] = df[c].str[1:]
+        if not (df.apply(lambda col: col.str.startswith("s")).all().all()):
+            raise ParticipantVisibleError(
+                "Value(s) in columns x, y, deg found without `s` prefix."
+            )
+        df = df.apply(lambda col: col.str.slice(1))
         return df
 
     def _validate_limits(self, df: pd.DataFrame) -> None:
