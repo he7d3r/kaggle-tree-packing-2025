@@ -35,7 +35,7 @@ class Plotter:
         tree_packing : TreePacking
             The TreePacking object containing the trees to plot.
         """
-        num_trees = len(tree_packing.trees)
+        num_trees = tree_packing.tree_count
         fig, ax = plt.subplots(figsize=(6, 6))
         colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])  # type: ignore
 
