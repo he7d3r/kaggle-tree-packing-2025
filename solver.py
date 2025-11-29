@@ -13,13 +13,12 @@ from plotter import Plotter
 def solve_all(rng: random.Random, plotter: Plotter) -> list[list[float]]:
     """Solves the tree placement problem for 1 to 200 trees."""
     tree_data = []
-    current_placed_trees = []  # Initialize an empty list for the first iteration
+    # Initialize an empty list for the first iteration
+    tree_packing = TreePacking()
 
     for n in tqdm(range(200), desc="Placing trees"):
-        # Pass the current_placed_trees to initialize_trees
-        tree_packing = initialize_trees(
-            n + 1, existing_trees=current_placed_trees, rng=rng
-        )
+        # Pass the current packing to initialize_trees
+        tree_packing = initialize_trees(n + 1, tree_packing, rng)
         if (n + 1) % 10 == 0:
             plotter.plot(tree_packing)
         for tree in tree_packing.trees:
@@ -28,9 +27,7 @@ def solve_all(rng: random.Random, plotter: Plotter) -> list[list[float]]:
 
 
 def initialize_trees(
-    num_trees: int,
-    existing_trees: list[ChristmasTree] | None,
-    rng: random.Random,
+    num_trees: int, tree_packing: TreePacking, rng: random.Random
 ) -> TreePacking:
     """
     This builds a simple, greedy starting configuration, by using the previous n-tree
@@ -41,9 +38,8 @@ def initialize_trees(
     You can easily modify this code to build each n-tree configuration completely
     from scratch.
     """
-    tree_packing = TreePacking(existing_trees)
     if num_trees == 0:
-        return tree_packing
+        return TreePacking()
 
     num_to_add = num_trees - len(tree_packing.trees)
 
