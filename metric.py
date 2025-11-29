@@ -15,7 +15,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, ChristmasTree
+from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
 
 
 class ParticipantVisibleError(Exception):
@@ -73,12 +73,12 @@ def score(submission: pd.DataFrame) -> float:
         num_trees = len(df_group)
 
         # Create tree objects from the submission values
-        placed_trees = []
+        tree_packing = TreePacking()
         for _, row in df_group.iterrows():
-            placed_trees.append(ChristmasTree(row["x"], row["y"], row["deg"]))
+            tree_packing.add_tree(ChristmasTree(row["x"], row["y"], row["deg"]))
 
         # Check for collisions using neighborhood search
-        all_polygons = [p.polygon for p in placed_trees]
+        all_polygons = tree_packing.polygons
         r_tree = STRtree(all_polygons)
 
         # Checking for collisions
