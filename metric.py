@@ -24,45 +24,9 @@ class ParticipantVisibleError(Exception):
     pass
 
 
-class Scorer:
-    def score_df(self, submission: pd.DataFrame) -> float:
-        """
-        For each n-tree configuration, the metric calculates the bounding square
-        volume divided by n, summed across all configurations.
-
-        This metric uses shapely v2.1.2.
-
-        Examples
-        -------
-        >>> import pandas as pd
-        >>> row_id_column_name = 'id'
-        >>> data = [['002_0', 's-0.2', 's-0.3', 's335'], ['002_1', 's0.49', 's0.21', 's155']]
-        >>> submission = pd.DataFrame(columns=['id', 'x', 'y', 'deg'], data=data)
-        >>> solution = submission[['id']].copy()
-        >>> score(solution, submission, row_id_column_name)
-        0.877038143325...
-        """
-        submission = self._remove_leading_s_prefix(submission)
-        self._validate_limits(submission)
-
-        # grouping puzzles to score
-        grouped = Submission.groups(submission)
-        total_score = Decimal("0.0")
-        for group, df_group in tqdm(list(grouped), desc="Scoring groups"):
-            name = str(group)
-            polygons = TreePacking.from_dataframe(df_group).polygons
-            total_score += self._score_group(name, polygons)
-
-        return float(total_score)
-
-    def score_submission(self, submission: Submission) -> float:
-        """Scores a Submission object."""
-        total_score = Decimal("0.0")
-        for pack in tqdm(submission.packs, desc="Scoring packs"):
-            name = f"{pack.tree_count:03d}"
-            polygons = pack.polygons
-            total_score += self._score_group(name, polygons)
-        return float(total_score)
+class BaseScorer:
+    def score(self) -> float:
+        raise NotImplementedError
 
     def _score_group(self, name: str, polygons: list[Polygon]) -> Decimal:
         # Create tree objects from the submission values and
@@ -95,6 +59,38 @@ class Scorer:
         )
         return group_score
 
+
+class DataFrameScorer(BaseScorer):
+    def score(self, submission: pd.DataFrame) -> float:
+        """
+        For each n-tree configuration, the metric calculates the bounding square
+        volume divided by n, summed across all configurations.
+
+        This metric uses shapely v2.1.2.
+
+        Examples
+        -------
+        >>> import pandas as pd
+        >>> row_id_column_name = 'id'
+        >>> data = [['002_0', 's-0.2', 's-0.3', 's335'], ['002_1', 's0.49', 's0.21', 's155']]
+        >>> submission = pd.DataFrame(columns=['id', 'x', 'y', 'deg'], data=data)
+        >>> solution = submission[['id']].copy()
+        >>> score(solution, submission, row_id_column_name)
+        0.877038143325...
+        """
+        submission = self._remove_leading_s_prefix(submission)
+        self._validate_limits(submission)
+
+        # grouping puzzles to score
+        grouped = Submission.groups(submission)
+        total_score = Decimal("0.0")
+        for group, df_group in tqdm(list(grouped), desc="Scoring groups"):
+            name = str(group)
+            polygons = TreePacking.from_dataframe(df_group).polygons
+            total_score += self._score_group(name, polygons)
+
+        return float(total_score)
+
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         data_cols = ["x", "y", "deg"]
         df = df.astype(str)
@@ -112,3 +108,14 @@ class Scorer:
             raise ParticipantVisibleError(
                 f"x and/or y values outside the bounds of -{limit} to {limit}."
             )
+
+
+class SubmissionScorer(BaseScorer):
+    def score(self, submission: Submission) -> float:
+        """Scores a Submission object."""
+        total_score = Decimal("0.0")
+        for pack in tqdm(submission.packs, desc="Scoring packs"):
+            name = f"{pack.tree_count:03d}"
+            polygons = pack.polygons
+            total_score += self._score_group(name, polygons)
+        return float(total_score)

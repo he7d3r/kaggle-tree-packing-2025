@@ -6,7 +6,7 @@ import sys
 import mlflow
 import pandas as pd
 
-from metric import Scorer
+from metric import DataFrameScorer, SubmissionScorer
 from plotter import Plotter
 from solver import BaselineIncrementalSolver
 
@@ -48,7 +48,6 @@ def main() -> None:
 
     plotter = Plotter()
     solver = BaselineIncrementalSolver(rng=random.Random(42))
-    scorer = Scorer()
 
     run = start_mlflow() if args.mlflow else None
 
@@ -57,7 +56,7 @@ def main() -> None:
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
-            submission_score = scorer.score_submission(solution)
+            submission_score = SubmissionScorer().score(solution)
         else:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
@@ -67,7 +66,7 @@ def main() -> None:
                 index_col="id",
             )
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
-            submission_score = scorer.score_df(submission_df)
+            submission_score = DataFrameScorer().score(submission_df)
 
         if args.mlflow:
             mlflow.log_metric("submission_score", submission_score)
