@@ -8,7 +8,6 @@ from shapely.strtree import STRtree
 from tqdm import tqdm
 
 from christmas_tree import SCALE_FACTOR, ChristmasTree, NTree
-from plotter import Plotter
 from solution import Solution
 
 MAX_TREE_COUNT = 200
@@ -18,17 +17,15 @@ class BaselineIncrementalSolver:
     def __init__(self, rng: random.Random) -> None:
         self.rng = rng
 
-    def solve_all(self, plotter: Plotter) -> Solution:
+    def solve_all(self) -> Solution:
         """Solves the tree placement problem for 1 to 200 trees."""
         solution = Solution()
         # Initialize an empty list for the first iteration
         n_tree = NTree()
 
-        for n in tqdm(range(MAX_TREE_COUNT), desc="Placing trees"):
+        for _ in tqdm(range(MAX_TREE_COUNT), desc="Placing trees"):
             # Pass the current n_tree to initialize_trees
             n_tree = self.solve(n_tree, batch_size=1)
-            if (n + 1) % 10 == 0:
-                plotter.plot(n_tree)
             solution.add(copy.deepcopy(n_tree))
         return solution
 

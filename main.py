@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--draft", action="store_true", help="Skip output file creation"
     )
+    parser.add_argument("--no-plot", action="store_true", help="Skip plotting")
     return parser.parse_args()
 
 
@@ -52,7 +53,7 @@ def main() -> None:
     run = start_mlflow() if args.mlflow else None
 
     try:
-        solution = solver.solve_all(plotter)
+        solution = solver.solve_all()
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
@@ -67,6 +68,12 @@ def main() -> None:
             )
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
             score = DataFrameScorer(submission_df).score()
+
+        if not args.no_plot:
+            plotter.plot(
+                solution,
+                filter_fn=lambda n_tree: n_tree.tree_count % 10 == 0,
+            )
 
         if args.mlflow:
             mlflow.log_metric("submission_score", score)

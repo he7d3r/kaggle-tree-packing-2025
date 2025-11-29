@@ -2,9 +2,14 @@ from decimal import Decimal
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
+from numpy.typing import NDArray
+from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, NTree
+from christmas_tree import SCALE_FACTOR, ChristmasTree, NTree
+from solution import Solution
 
 
 class Plotter:
@@ -25,7 +30,24 @@ class Plotter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.filename_format = filename_format
 
-    def plot(self, n_tree: NTree) -> None:
+    def plot(self, solution: Solution, *, filter_fn=None) -> None:
+        """
+        Plot all n_tree objects that satisfy filter_fn.
+
+        Parameters
+        ----------
+        solution : Solution
+            The solution containing n_trees.
+        filter_fn : callable, optional
+            A function taking a single n_tree and returning True/False.
+            If None, defaults to plotting all n-trees.
+        """
+
+        for n_tree in tqdm(solution.n_trees, desc="Plotting n-trees"):
+            if filter_fn is None or filter_fn(n_tree):
+                self._plot_n_tree(n_tree)
+
+    def _plot_n_tree(self, n_tree: NTree) -> None:
         """
         Plot the arrangement of trees and the bounding square.
         Optionally save the image to a directory.
@@ -40,12 +62,7 @@ class Plotter:
         colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])  # type: ignore
 
         for i, tree in enumerate(n_tree.trees):
-            # Rescale for plotting
-            x_scaled, y_scaled = tree.polygon.exterior.xy
-            x = [Decimal(val) / SCALE_FACTOR for val in x_scaled]
-            y = [Decimal(val) / SCALE_FACTOR for val in y_scaled]
-            ax.plot(x, y, color=colors[i])
-            ax.fill(x, y, alpha=0.5, color=colors[i])
+            self._plot_tree(tree, ax, color=colors[i])
 
         side_length = n_tree.side_length
         minx, miny, _, _ = n_tree.bounds
@@ -71,3 +88,13 @@ class Plotter:
         filename = self.filename_format.format(num_trees)
         plt.savefig(self.output_dir / filename, dpi=300, bbox_inches="tight")
         plt.close(fig)
+
+    def _plot_tree(
+        self, tree: ChristmasTree, ax: Axes, color: NDArray[np.float64]
+    ) -> None:
+        # Rescale for plotting
+        x_scaled, y_scaled = tree.polygon.exterior.xy
+        x = [Decimal(val) / SCALE_FACTOR for val in x_scaled]
+        y = [Decimal(val) / SCALE_FACTOR for val in y_scaled]
+        ax.plot(x, y, color=color)
+        ax.fill(x, y, alpha=0.5, color=color)
