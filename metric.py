@@ -64,7 +64,9 @@ def score(submission: pd.DataFrame) -> float:
         )
 
     # grouping puzzles to score
-    submission["tree_count_group"] = submission["id"].str.split("_").str[0]
+    submission["tree_count_group"] = (
+        submission.index.astype(str).str.split("_").str[0]
+    )
 
     total_score = Decimal("0.0")
     for group, df_group in tqdm(
