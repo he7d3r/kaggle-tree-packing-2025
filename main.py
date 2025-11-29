@@ -51,8 +51,8 @@ def main() -> None:
     try:
         rng = random.Random(42)
         plotter = Plotter()
-        solver = BaselineIncrementalSolver()
-        tree_data = solver.solve_all(rng, plotter)
+        solver = BaselineIncrementalSolver(rng)
+        tree_data = solver.solve_all(plotter)
         df = make_submission_df(tree_data)
 
         if not args.draft:

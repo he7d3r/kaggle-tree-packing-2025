@@ -11,9 +11,10 @@ from plotter import Plotter
 
 
 class BaselineIncrementalSolver:
-    def solve_all(
-        self, rng: random.Random, plotter: Plotter
-    ) -> list[list[float]]:
+    def __init__(self, rng: random.Random) -> None:
+        self.rng = rng
+
+    def solve_all(self, plotter: Plotter) -> list[list[float]]:
         """Solves the tree placement problem for 1 to 200 trees."""
         tree_data = []
         # Initialize an empty list for the first iteration
@@ -21,15 +22,15 @@ class BaselineIncrementalSolver:
 
         for n in tqdm(range(200), desc="Placing trees"):
             # Pass the current packing to initialize_trees
-            tree_packing = self.initialize_trees(tree_packing, rng)
+            tree_packing = self.solve(tree_packing, batch_size=1)
             if (n + 1) % 10 == 0:
                 plotter.plot(tree_packing)
             for tree in tree_packing.trees:
                 tree_data.append([tree.center_x, tree.center_y, tree.angle])
         return tree_data
 
-    def initialize_trees(
-        self, tree_packing: TreePacking, rng: random.Random, batch_size: int = 1
+    def solve(
+        self, tree_packing: TreePacking, batch_size: int = 1
     ) -> TreePacking:
         """
         This builds a simple, greedy starting configuration, by using the previous n-tree
@@ -44,7 +45,7 @@ class BaselineIncrementalSolver:
             raise ValueError("batch_size must be at least 1")
 
         unplaced_trees = [
-            ChristmasTree(angle=str(rng.uniform(0, 360)))
+            ChristmasTree(angle=str(self.rng.uniform(0, 360)))
             for _ in range(batch_size)
         ]
         if (
@@ -63,7 +64,7 @@ class BaselineIncrementalSolver:
             # This loop tries 10 random starting attempts and keeps the best one
             for _ in range(10):
                 # The new tree starts at a position 20 from the center, at a random vector angle.
-                angle = self.generate_weighted_angle(rng)
+                angle = self.generate_weighted_angle()
                 vx = Decimal(str(math.cos(angle)))
                 vy = Decimal(str(math.sin(angle)))
 
@@ -144,12 +145,12 @@ class BaselineIncrementalSolver:
 
         return tree_packing
 
-    def generate_weighted_angle(self, rng: random.Random) -> float:
+    def generate_weighted_angle(self) -> float:
         """
         Generates a random angle with a distribution weighted by abs(sin(2*angle)).
         This helps place more trees in corners, and makes the packing less round.
         """
         while True:
-            angle = rng.uniform(0, 2 * math.pi)
-            if rng.uniform(0, 1) < abs(math.sin(2 * angle)):
+            angle = self.rng.uniform(0, 2 * math.pi)
+            if self.rng.uniform(0, 1) < abs(math.sin(2 * angle)):
                 return angle
