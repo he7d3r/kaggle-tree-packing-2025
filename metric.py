@@ -16,7 +16,14 @@ class ParticipantVisibleError(Exception):
 
 
 class BaseScorer:
-    """Template method pattern: subclasses override only small pieces."""
+    """
+    Santa 2025 Metric
+    For each N-tree configuration, calculate the bounding square divided by N.
+    Final score is the sum of the scores across all configurations.
+
+    A scaling factor is used to maintain reasonably precise floating point
+    calculations in the shapely (v 2.1.2) library.
+    """
 
     def score(self) -> float:
         self.preprocess()
@@ -36,14 +43,6 @@ class BaseScorer:
         raise NotImplementedError
 
     def _score_n_tree(self, n_tree: NTree) -> Decimal:
-        """
-        Santa 2025 Metric
-        For each N-tree configuration, calculate the bounding square divided by N.
-        Final score is the sum of the scores across all configurations.
-
-        A scaling factor is used to maintain reasonably precise floating point
-        calculations in the shapely (v 2.1.2) library.
-        """
         # Create tree objects from the solution values and
         # check for collisions using neighborhood search
         polygons = n_tree.polygons
