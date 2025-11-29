@@ -9,6 +9,8 @@ from tqdm import tqdm
 from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
 from plotter import Plotter
 
+MAX_TREE_COUNT = 200
+
 
 class BaselineIncrementalSolver:
     def __init__(self, rng: random.Random) -> None:
@@ -20,7 +22,7 @@ class BaselineIncrementalSolver:
         # Initialize an empty list for the first iteration
         tree_packing = TreePacking()
 
-        for n in tqdm(range(200), desc="Placing trees"):
+        for n in tqdm(range(MAX_TREE_COUNT), desc="Placing trees"):
             # Pass the current packing to initialize_trees
             tree_packing = self.solve(tree_packing, batch_size=1)
             if (n + 1) % 10 == 0:
