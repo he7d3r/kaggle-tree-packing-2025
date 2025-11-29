@@ -11,6 +11,7 @@ calculations in the shapely (v 2.1.2) library.
 from decimal import Decimal
 
 import pandas as pd
+from shapely import Polygon
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
@@ -48,37 +49,45 @@ class Scorer:
         grouped = Submission.groups(submission)
         total_score = Decimal("0.0")
         for group, df_group in tqdm(list(grouped), desc="Scoring groups"):
-            total_score += self._score_group(str(group), df_group)
+            name = str(group)
+            polygons = TreePacking.from_dataframe(df_group).polygons
+            total_score += self._score_group(name, polygons)
 
         return float(total_score)
 
-    def _score_group(self, group: str, df_group: pd.DataFrame) -> Decimal:
-        num_trees = len(df_group)
+    def score_submission(self, submission: Submission) -> float:
+        """Scores a Submission object."""
+        total_score = Decimal("0.0")
+        for pack in tqdm(submission.packs, desc="Scoring packs"):
+            name = f"{pack.tree_count:03d}"
+            polygons = pack.polygons
+            total_score += self._score_group(name, polygons)
+        return float(total_score)
 
-        # Create tree objects from the submission values
-        tree_packing = TreePacking.from_dataframe(df_group)
-        # Check for collisions using neighborhood search
-        all_polygons = tree_packing.polygons
-        r_tree = STRtree(all_polygons)
+    def _score_group(self, name: str, polygons: list[Polygon]) -> Decimal:
+        # Create tree objects from the submission values and
+        # check for collisions using neighborhood search
+        r_tree = STRtree(polygons)
 
         # Checking for collisions
-        for i, poly in enumerate(all_polygons):
+        for i, poly in enumerate(polygons):
             indices = r_tree.query(poly)
             for index in indices:
                 if index == i:  # don't check against self
                     continue
-                if poly.intersects(all_polygons[index]) and not poly.touches(
-                    all_polygons[index]
+                if poly.intersects(polygons[index]) and not poly.touches(
+                    polygons[index]
                 ):
                     raise ParticipantVisibleError(
-                        f"Overlapping trees in group {group}"
+                        f"Overlapping trees in group {name}"
                     )
 
         # Calculate score for the group
-        bounds = unary_union(all_polygons).bounds
+        bounds = unary_union(polygons).bounds
         # Use the largest edge of the bounding rectangle to make a square bounding box
         side_length_scaled = max(bounds[2] - bounds[0], bounds[3] - bounds[1])
 
+        num_trees = len(polygons)
         group_score = (
             (Decimal(side_length_scaled) ** 2)
             / (SCALE_FACTOR**2)
@@ -103,8 +112,3 @@ class Scorer:
             raise ParticipantVisibleError(
                 f"x and/or y values outside the bounds of -{limit} to {limit}."
             )
-
-    def score(self, submission: Submission) -> float:
-        """Scores a Submission object."""
-        df = submission.to_dataframe()
-        return self.score_df(df)

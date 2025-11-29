@@ -54,22 +54,20 @@ def main() -> None:
 
     try:
         solution = solver.solve_all(plotter)
-        submission_df = solution.to_dataframe()
 
         if not args.draft:
-            submission_df.to_csv(OUTPUT_FILE)
+            solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
-
             submission_df = pd.read_csv(
                 OUTPUT_FILE,
                 dtype={"x": "string", "y": "string", "deg": "string"},
                 index_col="id",
             )
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
+            submission_score = scorer.score_df(submission_df)
         else:
             logger.info("Skipped submission file creation (draft mode).")
-
-        submission_score = scorer.score_df(submission_df)
+            submission_score = scorer.score_submission(solution)
 
         if args.mlflow:
             mlflow.log_metric("submission_score", submission_score)
