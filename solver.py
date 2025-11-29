@@ -32,7 +32,7 @@ class BaselineIncrementalSolver:
         return tree_data
 
     def solve(
-        self, tree_packing: TreePacking, batch_size: int = 1
+        self, existing_trees: TreePacking, batch_size: int = 1
     ) -> TreePacking:
         """
         This builds a simple, greedy starting configuration, by using the previous n-tree
@@ -51,12 +51,12 @@ class BaselineIncrementalSolver:
             for _ in range(batch_size)
         ]
         if (
-            not tree_packing.trees
+            not existing_trees.trees
         ):  # Only place the first tree at origin if starting from scratch
-            tree_packing.add_tree(unplaced_trees.pop(0))
+            existing_trees.add_tree(unplaced_trees.pop(0))
 
         for tree_to_place in unplaced_trees:
-            placed_polygons = tree_packing.polygons
+            placed_polygons = existing_trees.polygons
             tree_index = STRtree(placed_polygons)
 
             best_px = Decimal("0")
@@ -143,9 +143,9 @@ class BaselineIncrementalSolver:
                 yoff=float(tree_to_place.center_y * SCALE_FACTOR),
             )
             # Add the newly placed tree to the list
-            tree_packing.add_tree(tree_to_place)
+            existing_trees.add_tree(tree_to_place)
 
-        return tree_packing
+        return existing_trees
 
     def generate_weighted_angle(self) -> float:
         """
