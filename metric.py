@@ -28,7 +28,7 @@ class BaseScorer:
         self.preprocess()
 
         total_score = Decimal("0")
-        for n_tree in tqdm(self.generate_n_trees(), desc="Scoring"):
+        for n_tree in tqdm(self.n_trees(), desc="Scoring"):
             total_score += self._score_n_tree(n_tree)
 
         return float(total_score)
@@ -37,7 +37,7 @@ class BaseScorer:
         """Optional hook for subclasses."""
         return
 
-    def generate_n_trees(self) -> Iterable[NTree]:
+    def n_trees(self) -> list[NTree]:
         """Must be implemented by subclasses."""
         raise NotImplementedError
 
@@ -71,6 +71,14 @@ class BaseScorer:
         )
 
 
+class SolutionScorer(BaseScorer):
+    def __init__(self, solution: Solution):
+        self.solution = solution
+
+    def n_trees(self) -> list[NTree]:
+        return self.solution.n_trees
+
+
 class DataFrameScorer(BaseScorer):
     def __init__(self, submission_df: pd.DataFrame):
         self.submission_df = submission_df
@@ -80,9 +88,11 @@ class DataFrameScorer(BaseScorer):
         self._validate_limits(df)
         self.submission_df = df
 
-    def generate_n_trees(self) -> Generator[NTree, None, None]:
-        for _, n_tree_df in Solution.n_tree_dfs(self.submission_df):
-            yield NTree.from_dataframe(n_tree_df)
+    def n_trees(self) -> list[NTree]:
+        return [
+            NTree.from_dataframe(n_tree_df)
+            for _, n_tree_df in Solution.n_tree_dfs(self.submission_df)
+        ]
 
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.astype(str)
@@ -99,12 +109,3 @@ class DataFrameScorer(BaseScorer):
             raise ParticipantVisibleError(
                 f"x and/or y values outside the bounds of -{limit} to {limit}."
             )
-
-
-class SolutionScorer(BaseScorer):
-    def __init__(self, solution: Solution):
-        self.solution = solution
-
-    def generate_n_trees(self) -> Generator[NTree, None, None]:
-        for n_tree in self.solution.n_trees:
-            yield n_tree
