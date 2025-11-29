@@ -27,26 +27,27 @@ class ParticipantVisibleError(Exception):
 class BaseScorer:
     """Template method pattern: subclasses override only small pieces."""
 
-    def preprocess(self):
-        """Optional hook for subclasses."""
-        return
-
-    def generate_groups(self) -> Iterable[tuple[str, list[Polygon]]]:
-        """Must be implemented by subclasses."""
-        raise NotImplementedError
-
     def score(self) -> float:
         self.preprocess()
 
         total_score = Decimal("0")
-        for name, polygons in tqdm(self.generate_groups(), desc="Scoring"):
-            total_score += self._score_group(name, polygons)
+        for n_tree in tqdm(self.generate_n_trees(), desc="Scoring"):
+            total_score += self._score_n_tree(n_tree)
 
         return float(total_score)
 
-    def _score_group(self, name: str, polygons: list[Polygon]) -> Decimal:
+    def preprocess(self):
+        """Optional hook for subclasses."""
+        return
+
+    def generate_n_trees(self) -> Iterable[NTree]:
+        """Must be implemented by subclasses."""
+        raise NotImplementedError
+
+    def _score_n_tree(self, n_tree: NTree) -> Decimal:
         # Create tree objects from the solution values and
         # check for collisions using neighborhood search
+        polygons = n_tree.polygons
         r_tree = STRtree(polygons)
 
         # Checking for collisions
@@ -59,7 +60,7 @@ class BaseScorer:
                     polygons[index]
                 ):
                     raise ParticipantVisibleError(
-                        f"Overlapping trees in group {name}"
+                        f"Overlapping trees in n-tree {n_tree.name}"
                     )
 
         # bounding square score
@@ -82,15 +83,9 @@ class DataFrameScorer(BaseScorer):
         self._validate_limits(df)
         self.submission_df = df
 
-    def generate_groups(
-        self,
-    ) -> Generator[tuple[str, list[Polygon]], None, None]:
-        grouped = Solution.groups(self.submission_df)
-
-        for group, df_group in grouped:
-            name = str(group)
-            n_tree = NTree.from_dataframe(df_group)
-            yield name, n_tree.polygons
+    def generate_n_trees(self) -> Generator[NTree, None, None]:
+        for _, df_group in Solution.groups(self.submission_df):
+            yield NTree.from_dataframe(df_group)
 
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.astype(str)
@@ -114,9 +109,6 @@ class SolutionScorer(BaseScorer):
     def __init__(self, solution: Solution):
         self.solution = solution
 
-    def generate_groups(
-        self,
-    ) -> Generator[tuple[str, list[Polygon]], None, None]:
+    def generate_n_trees(self) -> Generator[NTree, None, None]:
         for n_tree in self.solution.n_trees:
-            name = f"{n_tree.tree_count:03d}"
-            yield name, n_tree.polygons
+            yield n_tree

@@ -105,6 +105,10 @@ class NTree:
         self.trees.append(tree)
 
     @property
+    def name(self) -> str:
+        return f"{self.tree_count:03d}"
+
+    @property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
         bounds = unary_union(self.polygons).bounds
         minx = Decimal(bounds[0]) / SCALE_FACTOR
