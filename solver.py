@@ -1,3 +1,4 @@
+import copy
 import math
 import random
 from decimal import Decimal
@@ -8,6 +9,7 @@ from tqdm import tqdm
 
 from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
 from plotter import Plotter
+from submission import Submission
 
 MAX_TREE_COUNT = 200
 
@@ -16,9 +18,9 @@ class BaselineIncrementalSolver:
     def __init__(self, rng: random.Random) -> None:
         self.rng = rng
 
-    def solve_all(self, plotter: Plotter) -> list[list[float]]:
+    def solve_all(self, plotter: Plotter) -> Submission:
         """Solves the tree placement problem for 1 to 200 trees."""
-        tree_data = []
+        submission = Submission()
         # Initialize an empty list for the first iteration
         tree_packing = TreePacking()
 
@@ -27,9 +29,8 @@ class BaselineIncrementalSolver:
             tree_packing = self.solve(tree_packing, batch_size=1)
             if (n + 1) % 10 == 0:
                 plotter.plot(tree_packing)
-            for tree in tree_packing.trees:
-                tree_data.append([tree.center_x, tree.center_y, tree.angle])
-        return tree_data
+            submission.add(copy.deepcopy(tree_packing))
+        return submission
 
     def solve(
         self, existing_trees: TreePacking, batch_size: int = 1

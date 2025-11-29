@@ -9,7 +9,6 @@ import pandas as pd
 from metric import score
 from plotter import Plotter
 from solver import BaselineIncrementalSolver
-from submission import make_submission_df
 
 OUTPUT_FILE = "submission.csv"
 TRACKING_URI = "sqlite:///mlruns.db"
@@ -52,14 +51,14 @@ def main() -> None:
         rng = random.Random(42)
         plotter = Plotter()
         solver = BaselineIncrementalSolver(rng)
-        tree_data = solver.solve_all(plotter)
-        df = make_submission_df(tree_data)
+        solution = solver.solve_all(plotter)
+        submission_df = solution.to_dataframe()
 
         if not args.draft:
-            df.to_csv(OUTPUT_FILE)
+            submission_df.to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
 
-            df = pd.read_csv(
+            submission_df = pd.read_csv(
                 OUTPUT_FILE,
                 dtype={"x": "string", "y": "string", "deg": "string"},
                 index_col="id",
@@ -68,7 +67,7 @@ def main() -> None:
         else:
             logger.info("Skipped submission file creation (draft mode).")
 
-        submission_score = score(df)
+        submission_score = score(submission_df)
 
         if args.mlflow:
             mlflow.log_metric("submission_score", submission_score)
