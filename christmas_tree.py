@@ -127,3 +127,7 @@ class TreePacking:
     @property
     def polygons(self) -> list[Polygon]:
         return [t.polygon for t in self.trees]
+
+    @property
+    def tree_count(self) -> int:
+        return len(self.trees)
