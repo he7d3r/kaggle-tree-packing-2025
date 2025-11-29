@@ -1,5 +1,4 @@
 from decimal import Decimal
-from typing import Generator, Iterable
 
 import pandas as pd
 from shapely.ops import unary_union
