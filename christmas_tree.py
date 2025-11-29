@@ -1,3 +1,4 @@
+import copy
 from decimal import Decimal, getcontext
 
 from shapely import affinity
@@ -92,8 +93,12 @@ class ChristmasTree:
 
 
 class TreePacking:
-    def __init__(self, trees: list[ChristmasTree] | None = None):
-        self.trees = trees if trees is not None else []
+    def __init__(
+        self, trees: list[ChristmasTree] | None = None, deepcopy: bool = False
+    ):
+        self.trees = (
+            copy.deepcopy(trees) if deepcopy and trees else (trees or [])
+        )
 
     def add_tree(self, tree: ChristmasTree) -> None:
         self.trees.append(tree)
