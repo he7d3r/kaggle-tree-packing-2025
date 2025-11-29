@@ -10,6 +10,7 @@ from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
 from solver import BaselineIncrementalSolver
 
+DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
 TRACKING_URI = "sqlite:///mlruns.db"
 EXPERIMENT_NAME = "Christmas Tree Packing"
@@ -35,6 +36,13 @@ def parse_args() -> argparse.Namespace:
         "--draft", action="store_true", help="Skip output file creation"
     )
     parser.add_argument("--no-plot", action="store_true", help="Skip plotting")
+    parser.add_argument(
+        "--max",
+        type=int,
+        default=DEFAULT_MAX_TREE_COUNT,
+        help=f"Maximum number of trees to solve (default: {DEFAULT_MAX_TREE_COUNT})",
+    )
+
     return parser.parse_args()
 
 
@@ -53,7 +61,7 @@ def main() -> None:
     run = start_mlflow() if args.mlflow else None
 
     try:
-        solution = solver.solve_all()
+        solution = solver.solve(problem_sizes=range(args.max))
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
@@ -61,6 +69,7 @@ def main() -> None:
         else:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
+
             submission_df = pd.read_csv(
                 OUTPUT_FILE,
                 dtype={"x": "string", "y": "string", "deg": "string"},

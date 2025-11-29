@@ -2,6 +2,7 @@ import copy
 import math
 import random
 from decimal import Decimal
+from typing import Sequence
 
 from shapely import affinity
 from shapely.strtree import STRtree
@@ -10,26 +11,24 @@ from tqdm import tqdm
 from christmas_tree import SCALE_FACTOR, ChristmasTree, NTree
 from solution import Solution
 
-MAX_TREE_COUNT = 200
-
 
 class BaselineIncrementalSolver:
     def __init__(self, rng: random.Random) -> None:
         self.rng = rng
 
-    def solve_all(self) -> Solution:
+    def solve(self, problem_sizes: Sequence) -> Solution:
         """Solves the tree placement problem for 1 to 200 trees."""
         solution = Solution()
         # Initialize an empty list for the first iteration
         n_tree = NTree()
 
-        for _ in tqdm(range(MAX_TREE_COUNT), desc="Placing trees"):
+        for _ in tqdm(problem_sizes, desc="Placing trees"):
             # Pass the current n_tree to initialize_trees
-            n_tree = self.solve(n_tree, batch_size=1)
+            n_tree = self.solve_one(n_tree, batch_size=1)
             solution.add(copy.deepcopy(n_tree))
         return solution
 
-    def solve(self, existing_trees: NTree, batch_size: int = 1) -> NTree:
+    def solve_one(self, existing_trees: NTree, batch_size: int = 1) -> NTree:
         """
         This builds a simple, greedy starting configuration, by using the previous n-tree
         placements, and adding more tree for the (n+1)-tree configuration. We place a tree
