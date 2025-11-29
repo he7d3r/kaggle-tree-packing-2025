@@ -53,47 +53,43 @@ class Scorer:
         for group, df_group in tqdm(
             list(submission.groupby("tree_count_group")), desc="Scoring groups"
         ):
-            num_trees = len(df_group)
-
-            # Create tree objects from the submission values
-            tree_packing = TreePacking()
-            for _, row in df_group.iterrows():
-                tree_packing.add_tree(
-                    ChristmasTree(row["x"], row["y"], row["deg"])
-                )
-
-            # Check for collisions using neighborhood search
-            all_polygons = tree_packing.polygons
-            r_tree = STRtree(all_polygons)
-
-            # Checking for collisions
-            for i, poly in enumerate(all_polygons):
-                indices = r_tree.query(poly)
-                for index in indices:
-                    if index == i:  # don't check against self
-                        continue
-                    if poly.intersects(
-                        all_polygons[index]
-                    ) and not poly.touches(all_polygons[index]):
-                        raise ParticipantVisibleError(
-                            f"Overlapping trees in group {group}"
-                        )
-
-            # Calculate score for the group
-            bounds = unary_union(all_polygons).bounds
-            # Use the largest edge of the bounding rectangle to make a square bounding box
-            side_length_scaled = max(
-                bounds[2] - bounds[0], bounds[3] - bounds[1]
-            )
-
-            group_score = (
-                (Decimal(side_length_scaled) ** 2)
-                / (SCALE_FACTOR**2)
-                / Decimal(num_trees)
-            )
-            total_score += group_score
+            total_score += self._score_group(str(group), df_group)
 
         return float(total_score)
+
+    def _score_group(self, group: str, df_group: pd.DataFrame) -> Decimal:
+        num_trees = len(df_group)
+
+        # Create tree objects from the submission values
+        tree_packing = TreePacking.from_dataframe(df_group)
+        # Check for collisions using neighborhood search
+        all_polygons = tree_packing.polygons
+        r_tree = STRtree(all_polygons)
+
+        # Checking for collisions
+        for i, poly in enumerate(all_polygons):
+            indices = r_tree.query(poly)
+            for index in indices:
+                if index == i:  # don't check against self
+                    continue
+                if poly.intersects(all_polygons[index]) and not poly.touches(
+                    all_polygons[index]
+                ):
+                    raise ParticipantVisibleError(
+                        f"Overlapping trees in group {group}"
+                    )
+
+        # Calculate score for the group
+        bounds = unary_union(all_polygons).bounds
+        # Use the largest edge of the bounding rectangle to make a square bounding box
+        side_length_scaled = max(bounds[2] - bounds[0], bounds[3] - bounds[1])
+
+        group_score = (
+            (Decimal(side_length_scaled) ** 2)
+            / (SCALE_FACTOR**2)
+            / Decimal(num_trees)
+        )
+        return group_score
 
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         data_cols = ["x", "y", "deg"]
@@ -108,7 +104,7 @@ class Scorer:
 
     def _validate_limits(self, df) -> None:
         limit = 100
-        if (df[["x", "y"]].astype(float).abs() > limit).any():
+        if (df[["x", "y"]].astype(float).abs() > limit).any().any():
             raise ParticipantVisibleError(
                 f"x and/or y values outside the bounds of -{limit} to {limit}."
             )

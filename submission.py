@@ -31,18 +31,12 @@ class Submission:
             df[col] = "s" + df[col].astype("string")
         return df
 
-    def from_dataframe(self, df: pd.DataFrame) -> "Submission":
+    @staticmethod
+    def from_dataframe(df: pd.DataFrame) -> "Submission":
         """Populates the Submission object from a DataFrame."""
         df = df.apply(lambda col: col.str.lstrip("s"))
         grouped = df.groupby(df.index.str.split("_").str[0])
-        self.packs = []
-        for _, group_df in grouped:
-            trees = []
-            for _, row in group_df.iterrows():
-                tree = ChristmasTree(
-                    center_x=row["x"], center_y=row["y"], angle=row["deg"]
-                )
-                trees.append(tree)
-            pack = TreePacking(trees)
-            self.packs.append(pack)
-        return self
+        packs = [
+            TreePacking.from_dataframe(group_df) for _, group_df in grouped
+        ]
+        return Submission(packs)

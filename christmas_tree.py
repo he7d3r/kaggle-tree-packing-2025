@@ -1,6 +1,7 @@
 import copy
 from decimal import Decimal, getcontext
 
+import pandas as pd
 from shapely import affinity
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
@@ -131,3 +132,13 @@ class TreePacking:
     @property
     def tree_count(self) -> int:
         return len(self.trees)
+
+    @staticmethod
+    def from_dataframe(df: pd.DataFrame) -> "TreePacking":
+        trees = [
+            ChristmasTree(
+                center_x=row["x"], center_y=row["y"], angle=row["deg"]
+            )
+            for _, row in df.iterrows()
+        ]
+        return TreePacking(trees)
