@@ -2,7 +2,6 @@ from decimal import Decimal
 from typing import Generator, Iterable
 
 import pandas as pd
-from shapely import Polygon
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
