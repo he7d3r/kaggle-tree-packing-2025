@@ -1,12 +1,3 @@
-"""
-Santa 2025 Metric
-For each N-tree configuration, calculate the bounding square divided by N.
-Final score is the sum of the scores across all configurations.
-
-A scaling factor is used to maintain reasonably precise floating point
-calculations in the shapely (v 2.1.2) library.
-"""
-
 from decimal import Decimal
 from typing import Generator, Iterable
 
@@ -45,6 +36,14 @@ class BaseScorer:
         raise NotImplementedError
 
     def _score_n_tree(self, n_tree: NTree) -> Decimal:
+        """
+        Santa 2025 Metric
+        For each N-tree configuration, calculate the bounding square divided by N.
+        Final score is the sum of the scores across all configurations.
+
+        A scaling factor is used to maintain reasonably precise floating point
+        calculations in the shapely (v 2.1.2) library.
+        """
         # Create tree objects from the solution values and
         # check for collisions using neighborhood search
         polygons = n_tree.polygons
@@ -84,8 +83,8 @@ class DataFrameScorer(BaseScorer):
         self.submission_df = df
 
     def generate_n_trees(self) -> Generator[NTree, None, None]:
-        for _, df_group in Solution.groups(self.submission_df):
-            yield NTree.from_dataframe(df_group)
+        for _, n_tree_df in Solution.n_tree_dfs(self.submission_df):
+            yield NTree.from_dataframe(n_tree_df)
 
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.astype(str)

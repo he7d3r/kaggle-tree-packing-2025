@@ -38,12 +38,12 @@ class Solution:
         """Populates the Solution object from a DataFrame."""
         df = df.apply(lambda col: col.str.lstrip("s"))
         n_trees = [
-            NTree.from_dataframe(group_df)
-            for _, group_df in Solution.groups(df)
+            NTree.from_dataframe(n_tree_df)
+            for _, n_tree_df in Solution.n_tree_dfs(df)
         ]
         return Solution(n_trees)
 
     @staticmethod
-    def groups(df: pd.DataFrame) -> Any:
-        """Extracts groups of trees from the DataFrame."""
+    def n_tree_dfs(df: pd.DataFrame) -> Any:
+        """Extracts n-tree data-frames from the DataFrame."""
         return df.groupby(df.index.astype(str).str.split("_").str[0])
