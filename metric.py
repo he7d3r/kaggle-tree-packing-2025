@@ -16,96 +16,104 @@ from shapely.strtree import STRtree
 from tqdm import tqdm
 
 from christmas_tree import SCALE_FACTOR, ChristmasTree, TreePacking
+from submission import Submission
 
 
 class ParticipantVisibleError(Exception):
     pass
 
 
-def score(submission: pd.DataFrame) -> float:
-    """
-    For each n-tree configuration, the metric calculates the bounding square
-    volume divided by n, summed across all configurations.
+class Scorer:
+    def score_df(self, submission: pd.DataFrame) -> float:
+        """
+        For each n-tree configuration, the metric calculates the bounding square
+        volume divided by n, summed across all configurations.
 
-    This metric uses shapely v2.1.2.
+        This metric uses shapely v2.1.2.
 
-    Examples
-    -------
-    >>> import pandas as pd
-    >>> row_id_column_name = 'id'
-    >>> data = [['002_0', 's-0.2', 's-0.3', 's335'], ['002_1', 's0.49', 's0.21', 's155']]
-    >>> submission = pd.DataFrame(columns=['id', 'x', 'y', 'deg'], data=data)
-    >>> solution = submission[['id']].copy()
-    >>> score(solution, submission, row_id_column_name)
-    0.877038143325...
-    """
+        Examples
+        -------
+        >>> import pandas as pd
+        >>> row_id_column_name = 'id'
+        >>> data = [['002_0', 's-0.2', 's-0.3', 's335'], ['002_1', 's0.49', 's0.21', 's155']]
+        >>> submission = pd.DataFrame(columns=['id', 'x', 'y', 'deg'], data=data)
+        >>> solution = submission[['id']].copy()
+        >>> score(solution, submission, row_id_column_name)
+        0.877038143325...
+        """
+        submission = self._remove_leading_s_prefix(submission)
+        self._validate_limits(submission)
 
-    # remove the leading 's' from submissions
-    data_cols = ["x", "y", "deg"]
-    submission = submission.astype(str)
-    for c in data_cols:
-        if not submission[c].str.startswith("s").all():
-            raise ParticipantVisibleError(
-                f"Value(s) in column {c} found without `s` prefix."
+        # grouping puzzles to score
+        submission["tree_count_group"] = (
+            submission.index.astype(str).str.split("_").str[0]
+        )
+
+        total_score = Decimal("0.0")
+        for group, df_group in tqdm(
+            list(submission.groupby("tree_count_group")), desc="Scoring groups"
+        ):
+            num_trees = len(df_group)
+
+            # Create tree objects from the submission values
+            tree_packing = TreePacking()
+            for _, row in df_group.iterrows():
+                tree_packing.add_tree(
+                    ChristmasTree(row["x"], row["y"], row["deg"])
+                )
+
+            # Check for collisions using neighborhood search
+            all_polygons = tree_packing.polygons
+            r_tree = STRtree(all_polygons)
+
+            # Checking for collisions
+            for i, poly in enumerate(all_polygons):
+                indices = r_tree.query(poly)
+                for index in indices:
+                    if index == i:  # don't check against self
+                        continue
+                    if poly.intersects(
+                        all_polygons[index]
+                    ) and not poly.touches(all_polygons[index]):
+                        raise ParticipantVisibleError(
+                            f"Overlapping trees in group {group}"
+                        )
+
+            # Calculate score for the group
+            bounds = unary_union(all_polygons).bounds
+            # Use the largest edge of the bounding rectangle to make a square bounding box
+            side_length_scaled = max(
+                bounds[2] - bounds[0], bounds[3] - bounds[1]
             )
-        submission[c] = submission[c].str[1:]
 
-    # enforce value limits
-    limit = 100
-    bad_x = (submission["x"].astype(float) < -limit).any() or (
-        submission["x"].astype(float) > limit
-    ).any()
-    bad_y = (submission["y"].astype(float) < -limit).any() or (
-        submission["y"].astype(float) > limit
-    ).any()
-    if bad_x or bad_y:
-        raise ParticipantVisibleError(
-            "x and/or y values outside the bounds of -100 to 100."
-        )
+            group_score = (
+                (Decimal(side_length_scaled) ** 2)
+                / (SCALE_FACTOR**2)
+                / Decimal(num_trees)
+            )
+            total_score += group_score
 
-    # grouping puzzles to score
-    submission["tree_count_group"] = (
-        submission.index.astype(str).str.split("_").str[0]
-    )
+        return float(total_score)
 
-    total_score = Decimal("0.0")
-    for group, df_group in tqdm(
-        list(submission.groupby("tree_count_group")), desc="Scoring groups"
-    ):
-        num_trees = len(df_group)
+    def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
+        data_cols = ["x", "y", "deg"]
+        df = df.astype(str)
+        for c in data_cols:
+            if not df[c].str.startswith("s").all():
+                raise ParticipantVisibleError(
+                    f"Value(s) in column {c} found without `s` prefix."
+                )
+            df[c] = df[c].str[1:]
+        return df
 
-        # Create tree objects from the submission values
-        tree_packing = TreePacking()
-        for _, row in df_group.iterrows():
-            tree_packing.add_tree(ChristmasTree(row["x"], row["y"], row["deg"]))
+    def _validate_limits(self, df) -> None:
+        limit = 100
+        if (df[["x", "y"]].astype(float).abs() > limit).any():
+            raise ParticipantVisibleError(
+                f"x and/or y values outside the bounds of -{limit} to {limit}."
+            )
 
-        # Check for collisions using neighborhood search
-        all_polygons = tree_packing.polygons
-        r_tree = STRtree(all_polygons)
-
-        # Checking for collisions
-        for i, poly in enumerate(all_polygons):
-            indices = r_tree.query(poly)
-            for index in indices:
-                if index == i:  # don't check against self
-                    continue
-                if poly.intersects(all_polygons[index]) and not poly.touches(
-                    all_polygons[index]
-                ):
-                    raise ParticipantVisibleError(
-                        f"Overlapping trees in group {group}"
-                    )
-
-        # Calculate score for the group
-        bounds = unary_union(all_polygons).bounds
-        # Use the largest edge of the bounding rectangle to make a square bounding box
-        side_length_scaled = max(bounds[2] - bounds[0], bounds[3] - bounds[1])
-
-        group_score = (
-            (Decimal(side_length_scaled) ** 2)
-            / (SCALE_FACTOR**2)
-            / Decimal(num_trees)
-        )
-        total_score += group_score
-
-    return float(total_score)
+    def score(self, submission: Submission) -> float:
+        """Scores a Submission object."""
+        df = submission.to_dataframe()
+        return self.score_df(df)
