@@ -1,6 +1,7 @@
 import argparse
 import logging
 import random
+import sys
 
 import mlflow
 import pandas as pd
@@ -13,14 +14,17 @@ from submission import make_submission_df
 OUTPUT_FILE = "submission.csv"
 TRACKING_URI = "sqlite:///mlruns.db"
 EXPERIMENT_NAME = "Christmas Tree Packing"
+LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
+DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 
-# Configure logging early in the module
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
 logger = logging.getLogger(__name__)
+if not logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATEFMT))
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,25 +56,25 @@ def main() -> None:
 
         if not args.draft:
             df.to_csv(OUTPUT_FILE)
-            logger.info("Submission saved to %s", OUTPUT_FILE)
+            logger.info("Submission saved to %s.", OUTPUT_FILE)
 
             df = pd.read_csv(
                 OUTPUT_FILE,
                 dtype={"x": "string", "y": "string", "deg": "string"},
                 index_col="id",
             )
-            logger.info("Submission reloaded from %s", OUTPUT_FILE)
+            logger.info("Submission reloaded from %s.", OUTPUT_FILE)
         else:
-            logger.info("Skipped submission file creation (draft mode)")
+            logger.info("Skipped submission file creation (draft mode).")
 
         submission_score = score(df)
 
         if args.mlflow:
             mlflow.log_metric("submission_score", submission_score)
         else:
-            logger.info("Skipped MLflow logging")
+            logger.info("Skipped MLflow logging.")
 
-        logger.info("Submission score: %s", submission_score)
+        logger.info("Submission score: %s.", submission_score)
 
     except Exception as e:
         if args.mlflow:
