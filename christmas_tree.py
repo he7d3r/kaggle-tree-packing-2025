@@ -1,4 +1,5 @@
 from decimal import Decimal, getcontext
+from functools import cached_property
 
 import pandas as pd
 from shapely import affinity
@@ -93,6 +94,7 @@ class ChristmasTree:
         self.polygon = affinity.rotate(
             self.polygon, float(angle), origin=(0, 0)
         )
+        self._invalidate_cache()
         return self
 
     def set_center(self, x: Decimal, y: Decimal) -> "ChristmasTree":
@@ -103,23 +105,29 @@ class ChristmasTree:
             xoff=float(x * SCALE_FACTOR),
             yoff=float(y * SCALE_FACTOR),
         )
+        self._invalidate_cache()
         return self
 
-    @property
-    def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        bounds = self.polygon.bounds
-        minx = Decimal(bounds[0]) / SCALE_FACTOR
-        miny = Decimal(bounds[1]) / SCALE_FACTOR
-        maxx = Decimal(bounds[2]) / SCALE_FACTOR
-        maxy = Decimal(bounds[3]) / SCALE_FACTOR
-        return minx, miny, maxx, maxy
+    def _invalidate_cache(self):
+        # Remove cached attributes (if they exist)
+        for attr in ("bounds", "sides"):
+            if attr in self.__dict__:
+                del self.__dict__[attr]
 
-    @property
+    @cached_property
+    def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        minx, miny, maxx, maxy = self.polygon.bounds
+        return (
+            Decimal(minx) / SCALE_FACTOR,
+            Decimal(miny) / SCALE_FACTOR,
+            Decimal(maxx) / SCALE_FACTOR,
+            Decimal(maxy) / SCALE_FACTOR,
+        )
+
+    @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
         minx, miny, maxx, maxy = self.bounds
-        width = maxx - minx
-        height = maxy - miny
-        return width, height
+        return maxx - minx, maxy - miny
 
     def __repr__(self) -> str:
         return (
@@ -134,28 +142,34 @@ class NTree:
 
     def add_tree(self, tree: ChristmasTree) -> None:
         self.trees.append(tree)
+        self._invalidate_cache()
+
+    def _invalidate_cache(self):
+        """Invalidate cached geometric properties."""
+        for attr in ("_union", "bounds", "sides", "side_length"):
+            if attr in self.__dict__:
+                del self.__dict__[attr]
 
     @property
     def name(self) -> str:
         return f"{self.tree_count:03d}"
 
-    @property
+    @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        bounds = unary_union(self.polygons).bounds
-        minx = Decimal(bounds[0]) / SCALE_FACTOR
-        miny = Decimal(bounds[1]) / SCALE_FACTOR
-        maxx = Decimal(bounds[2]) / SCALE_FACTOR
-        maxy = Decimal(bounds[3]) / SCALE_FACTOR
-        return minx, miny, maxx, maxy
+        minx, miny, maxx, maxy = unary_union(self.polygons).bounds
+        return (
+            Decimal(minx) / SCALE_FACTOR,
+            Decimal(miny) / SCALE_FACTOR,
+            Decimal(maxx) / SCALE_FACTOR,
+            Decimal(maxy) / SCALE_FACTOR,
+        )
 
-    @property
+    @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
         minx, miny, maxx, maxy = self.bounds
-        width = maxx - minx
-        height = maxy - miny
-        return width, height
+        return maxx - minx, maxy - miny
 
-    @property
+    @cached_property
     def side_length(self) -> Decimal:
         # Force a square bounding with the largest side
         return max(self.sides)
