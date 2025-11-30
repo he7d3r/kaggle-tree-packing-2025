@@ -82,13 +82,19 @@ class ChristmasTree:
                 ),
             ]
         )
-        rotated = affinity.rotate(
-            initial_polygon, float(self.angle), origin=(0, 0)
+        rotated = ChristmasTree.rotate_polygon(initial_polygon, self.angle)
+        self.polygon = ChristmasTree.translate_polygon(
+            rotated, self.center_x, self.center_y
         )
-        self.polygon = affinity.translate(
-            rotated,
-            xoff=float(self.center_x * SCALE_FACTOR),
-            yoff=float(self.center_y * SCALE_FACTOR),
+
+    @staticmethod
+    def rotate_polygon(polygon: Polygon, angle: Decimal) -> Polygon:
+        return affinity.rotate(polygon, float(angle), origin=(0, 0))
+
+    @staticmethod
+    def translate_polygon(polygon: Polygon, x: Decimal, y: Decimal) -> Polygon:
+        return affinity.translate(
+            polygon, xoff=float(x * SCALE_FACTOR), yoff=float(y * SCALE_FACTOR)
         )
 
 

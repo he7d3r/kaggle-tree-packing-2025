@@ -4,11 +4,10 @@ import random
 from decimal import Decimal
 from typing import Sequence
 
-from shapely import affinity
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, ChristmasTree, NTree
+from christmas_tree import ChristmasTree, NTree
 from solution import Solution
 
 
@@ -70,10 +69,8 @@ class BaselineIncrementalSolver:
                     px = radius * vx
                     py = radius * vy
 
-                    candidate_poly = affinity.translate(
-                        tree_to_place.polygon,
-                        xoff=float(px * SCALE_FACTOR),
-                        yoff=float(py * SCALE_FACTOR),
+                    candidate_poly = ChristmasTree.translate_polygon(
+                        tree_to_place.polygon, px, py
                     )
 
                     # Looking for nearby objects
@@ -98,10 +95,8 @@ class BaselineIncrementalSolver:
                         px = radius * vx
                         py = radius * vy
 
-                        candidate_poly = affinity.translate(
-                            tree_to_place.polygon,
-                            xoff=float(px * SCALE_FACTOR),
-                            yoff=float(py * SCALE_FACTOR),
+                        candidate_poly = ChristmasTree.translate_polygon(
+                            tree_to_place.polygon, px, py
                         )
 
                         possible_indices = tree_index.query(candidate_poly)
@@ -128,10 +123,10 @@ class BaselineIncrementalSolver:
 
             tree_to_place.center_x = best_px
             tree_to_place.center_y = best_py
-            tree_to_place.polygon = affinity.translate(
+            tree_to_place.polygon = ChristmasTree.translate_polygon(
                 tree_to_place.polygon,
-                xoff=float(tree_to_place.center_x * SCALE_FACTOR),
-                yoff=float(tree_to_place.center_y * SCALE_FACTOR),
+                tree_to_place.center_x,
+                tree_to_place.center_y,
             )
             # Add the newly placed tree to the list
             existing_trees.add_tree(tree_to_place)
