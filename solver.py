@@ -24,11 +24,11 @@ class BaselineIncrementalSolver:
 
         for _ in tqdm(problem_sizes, desc="Placing trees"):
             # Pass the current n_tree to initialize_trees
-            n_tree = self.solve_one(n_tree, batch_size=1)
+            n_tree = self.solve_n_tree(n_tree, batch_size=1)
             solution.add(copy.deepcopy(n_tree))
         return solution
 
-    def solve_one(self, existing_trees: NTree, batch_size: int = 1) -> NTree:
+    def solve_n_tree(self, existing_trees: NTree, batch_size: int = 1) -> NTree:
         """
         This builds a simple, greedy starting configuration, by using the previous n-tree
         placements, and adding more tree for the (n+1)-tree configuration. We place a tree
