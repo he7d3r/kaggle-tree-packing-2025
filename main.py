@@ -57,6 +57,35 @@ def start_mlflow(solver: BaseSolver | IncrementalSolver):
     return mlflow.start_run(run_name=solver.__class__.__name__)
 
 
+def in_notebook():
+    """Check if we're running in a notebook environment."""
+    try:
+        from IPython.core.getipython import get_ipython
+
+        return get_ipython() is not None
+    except (ImportError, NameError):
+        return False
+
+
+def display_notebook_images():
+    """Display saved plot images in notebook environment."""
+    try:
+        import glob
+
+        from IPython.display import Image, display
+
+        pattern = "images/*.png"
+
+        for image_file in sorted(glob.glob(pattern)):
+            print(f"Displaying: {image_file}")
+            display(Image(filename=image_file, width=400))
+
+    except ImportError:
+        logger.info("IPython not available for image display")
+    except Exception as e:
+        logger.warning(f"Could not display images: {e}")
+
+
 def main() -> None:
     args = parse_args()
 
@@ -97,6 +126,10 @@ def main() -> None:
             logger.info("Skipped MLflow logging.")
 
         logger.info("Submission score: %s.", score)
+
+        # Display images in notebook environment after execution
+        if in_notebook() and not args.no_plot:
+            display_notebook_images()
 
     except Exception as e:
         if args.mlflow:
