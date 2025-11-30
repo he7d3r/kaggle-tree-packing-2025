@@ -2,7 +2,6 @@ import argparse
 import logging
 import sys
 
-import mlflow
 import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
@@ -46,6 +45,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def start_mlflow(solver: BaseSolver | IncrementalSolver):
+    import mlflow
+
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT_NAME)
     return mlflow.start_run(run_name=solver.__class__.__name__)
@@ -84,6 +85,8 @@ def main() -> None:
             score = DataFrameScorer(submission_df).score()
 
         if args.mlflow:
+            import mlflow
+
             mlflow.log_metric("submission_score", score)
         else:
             logger.info("Skipped MLflow logging.")
@@ -92,11 +95,15 @@ def main() -> None:
 
     except Exception as e:
         if args.mlflow:
+            import mlflow
+
             mlflow.log_param("error", str(e))
             mlflow.end_run(status="FAILED")
         raise
     finally:
         if args.mlflow and run is not None:
+            import mlflow
+
             mlflow.end_run()
 
 
