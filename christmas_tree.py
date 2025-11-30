@@ -114,6 +114,13 @@ class ChristmasTree:
         maxy = Decimal(bounds[3]) / SCALE_FACTOR
         return minx, miny, maxx, maxy
 
+    @property
+    def sides(self) -> tuple[Decimal, Decimal]:
+        minx, miny, maxx, maxy = self.bounds
+        width = maxx - minx
+        height = maxy - miny
+        return width, height
+
     def __repr__(self) -> str:
         return (
             f"ChristmasTree(center_x={self.center_x}, center_y={self.center_y}, "
