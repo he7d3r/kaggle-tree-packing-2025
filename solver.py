@@ -11,12 +11,22 @@ from christmas_tree import ChristmasTree, NTree
 from solution import Solution
 
 
-class BaselineIncrementalSolver:
-    def __init__(self, rng: random.Random) -> None:
-        self.rng = rng
-
+class BaseSolver:
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
-        """Solves the tree placement problem for 1 to 200 trees."""
+        """Solves the tree placement problem the specified n-tree sizes."""
+        solution = Solution()
+        for tree_count in tqdm(problem_sizes, desc="Placing trees"):
+            n_tree = self.solve_n_tree(tree_count)
+            solution.add(copy.deepcopy(n_tree))
+        return solution
+
+    def solve_n_tree(self, tree_count: int) -> NTree:
+        raise NotImplementedError
+
+
+class IncrementalSolver:
+    def solve(self, problem_sizes: Sequence[int]) -> Solution:
+        """Solves the tree placement problem the specified n-tree sizes."""
         solution = Solution()
         # Initialize an empty list for the first iteration
         n_tree = NTree()
@@ -27,6 +37,16 @@ class BaselineIncrementalSolver:
             )
             solution.add(copy.deepcopy(n_tree))
         return solution
+
+    def solve_n_tree(
+        self, tree_count: int, existing_trees: NTree, batch_size: int = 1
+    ) -> NTree:
+        raise NotImplementedError
+
+
+class BaselineIncrementalSolver(IncrementalSolver):
+    def __init__(self, rng: random.Random) -> None:
+        self.rng = rng
 
     def solve_n_tree(
         self, tree_count: int, existing_trees: NTree, batch_size: int = 1
