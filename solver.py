@@ -24,7 +24,7 @@ class BaseSolver:
         raise NotImplementedError
 
 
-class GridLayoutSolver(BaseSolver):
+class ColumnFirstGridLayoutSolver(BaseSolver):
     def solve_n_tree(self, tree_count: int) -> NTree:
         """Arrange `tree_count` Christmas trees in a near-square grid."""
         unit = ChristmasTree()
@@ -35,8 +35,8 @@ class GridLayoutSolver(BaseSolver):
         )
 
         n_tree = NTree()
-        for row in range(rows_needed):
-            for col in range(trees_per_row):
+        for col in range(trees_per_row):
+            for row in range(rows_needed):
                 x = col * width
                 y = row * height
                 n_tree.add_tree(ChristmasTree(x, y))
