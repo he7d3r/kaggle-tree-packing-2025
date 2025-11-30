@@ -16,19 +16,22 @@ class BaselineIncrementalSolver:
     def __init__(self, rng: random.Random) -> None:
         self.rng = rng
 
-    def solve(self, problem_sizes: Sequence) -> Solution:
+    def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem for 1 to 200 trees."""
         solution = Solution()
         # Initialize an empty list for the first iteration
         n_tree = NTree()
-
-        for _ in tqdm(problem_sizes, desc="Placing trees"):
+        for tree_count in tqdm(problem_sizes, desc="Placing trees"):
             # Pass the current n_tree to initialize_trees
-            n_tree = self.solve_n_tree(n_tree, batch_size=1)
+            n_tree = self.solve_n_tree(
+                tree_count, n_tree, batch_size=tree_count - n_tree.tree_count
+            )
             solution.add(copy.deepcopy(n_tree))
         return solution
 
-    def solve_n_tree(self, existing_trees: NTree, batch_size: int = 1) -> NTree:
+    def solve_n_tree(
+        self, tree_count: int, existing_trees: NTree, batch_size: int = 1
+    ) -> NTree:
         """
         This builds a simple, greedy starting configuration, by using the previous n-tree
         placements, and adding more tree for the (n+1)-tree configuration. We place a tree
@@ -45,9 +48,8 @@ class BaselineIncrementalSolver:
             ChristmasTree(angle=str(self.rng.uniform(0, 360)))
             for _ in range(batch_size)
         ]
-        if (
-            not existing_trees.trees
-        ):  # Only place the first tree at origin if starting from scratch
+        if not existing_trees.trees:
+            # Only place the first tree at origin if starting from scratch
             existing_trees.add_tree(unplaced_trees.pop(0))
 
         for tree_to_place in unplaced_trees:

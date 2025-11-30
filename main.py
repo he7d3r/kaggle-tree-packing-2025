@@ -61,7 +61,7 @@ def main() -> None:
     run = start_mlflow() if args.mlflow else None
 
     try:
-        solution = solver.solve(problem_sizes=range(args.max))
+        solution = solver.solve(problem_sizes=range(1, args.max + 1))
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
