@@ -26,19 +26,37 @@ class BaseSolver:
 
 class GridLayoutSolver(BaseSolver):
     def solve_n_tree(self, tree_count: int) -> NTree:
-        tree = ChristmasTree()
-        width, height = tree.sides
-        total_area_of_n_trees = width * height * tree_count
-        ideal_side = Decimal(math.sqrt(total_area_of_n_trees))
-        x_trees = math.ceil(ideal_side / width)
-        y_trees = (tree_count // x_trees) + 1
+        """Arrange `tree_count` Christmas trees in a near-square grid."""
+        unit = ChristmasTree()
+        width, height = unit.sides
+
+        trees_per_row, rows_needed = self._estimate_grid_dimensions(
+            unit, tree_count
+        )
+
         n_tree = NTree()
-        for y in range(y_trees):
-            for x in range(x_trees):
-                n_tree.add_tree(ChristmasTree(x * width, y * height))
+        for row in range(rows_needed):
+            for col in range(trees_per_row):
+                x = col * width
+                y = row * height
+                n_tree.add_tree(ChristmasTree(x, y))
+
                 if n_tree.tree_count >= tree_count:
                     return n_tree
+
         return n_tree
+
+    def _estimate_grid_dimensions(
+        self, tree: ChristmasTree, count: int
+    ) -> tuple[int, int]:
+        width, height = tree.sides
+        total_area = width * height * count
+        ideal_square_side = Decimal(math.sqrt(total_area))
+
+        trees_per_row = math.ceil(ideal_square_side / width)
+        rows_needed = math.ceil(count / trees_per_row)
+
+        return trees_per_row, rows_needed
 
 
 class IncrementalSolver:
