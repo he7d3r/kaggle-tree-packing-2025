@@ -105,6 +105,15 @@ class ChristmasTree:
         )
         return self
 
+    @property
+    def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        bounds = self.polygon.bounds
+        minx = Decimal(bounds[0]) / SCALE_FACTOR
+        miny = Decimal(bounds[1]) / SCALE_FACTOR
+        maxx = Decimal(bounds[2]) / SCALE_FACTOR
+        maxy = Decimal(bounds[3]) / SCALE_FACTOR
+        return minx, miny, maxx, maxy
+
     def __repr__(self) -> str:
         return (
             f"ChristmasTree(center_x={self.center_x}, center_y={self.center_y}, "
