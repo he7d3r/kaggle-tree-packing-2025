@@ -1,4 +1,3 @@
-import copy
 from decimal import Decimal, getcontext
 
 import pandas as pd
@@ -94,12 +93,8 @@ class ChristmasTree:
 
 
 class NTree:
-    def __init__(
-        self, trees: list[ChristmasTree] | None = None, deepcopy: bool = False
-    ):
-        self.trees = (
-            copy.deepcopy(trees) if deepcopy and trees else (trees or [])
-        )
+    def __init__(self, trees: list[ChristmasTree] | None = None):
+        self.trees = trees or []
 
     def add_tree(self, tree: ChristmasTree) -> None:
         self.trees.append(tree)
