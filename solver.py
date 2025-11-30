@@ -41,18 +41,12 @@ class BaselineIncrementalSolver:
         You can easily modify this code to build each n-tree configuration completely
         from scratch.
         """
-        if batch_size < 1:
-            raise ValueError("batch_size must be at least 1")
-
-        unplaced_trees = [
-            ChristmasTree(angle=str(self.rng.uniform(0, 360)))
-            for _ in range(batch_size)
-        ]
-        if not existing_trees.trees:
-            # Only place the first tree at origin if starting from scratch
-            existing_trees.add_tree(unplaced_trees.pop(0))
-
-        for tree_to_place in unplaced_trees:
+        for _ in range(batch_size):
+            tree_to_place = ChristmasTree(angle=str(self.rng.uniform(0, 360)))
+            if not existing_trees.trees:
+                # Only place the first tree at origin if starting from scratch
+                existing_trees.add_tree(tree_to_place)
+                continue
             placed_polygons = existing_trees.polygons
             tree_index = STRtree(placed_polygons)
 
