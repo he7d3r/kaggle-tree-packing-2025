@@ -24,12 +24,12 @@ class BaseSolver:
         raise NotImplementedError
 
 
-class GridWithNearIdealAreaSolver(BaseSolver):
+class GridLayoutSolver(BaseSolver):
     def solve_n_tree(self, tree_count: int) -> NTree:
         tree = ChristmasTree()
         width, height = tree.sides
-        n_trees_area = width * height * tree_count
-        ideal_side = Decimal(math.sqrt(n_trees_area))
+        total_area_of_n_trees = width * height * tree_count
+        ideal_side = Decimal(math.sqrt(total_area_of_n_trees))
         x_trees = math.ceil(ideal_side / width)
         y_trees = (tree_count // x_trees) + 1
         n_tree = NTree()

@@ -7,7 +7,7 @@ import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
-from solver import BaseSolver, GridWithNearIdealAreaSolver, IncrementalSolver
+from solver import BaseSolver, GridLayoutSolver, IncrementalSolver
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -55,7 +55,7 @@ def main() -> None:
     args = parse_args()
 
     plotter = Plotter()
-    solver = GridWithNearIdealAreaSolver()
+    solver = GridLayoutSolver()
 
     run = start_mlflow(solver) if args.mlflow else None
 
