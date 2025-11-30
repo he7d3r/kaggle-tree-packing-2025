@@ -41,7 +41,12 @@ def parse_args() -> argparse.Namespace:
         help=f"Maximum number of trees to solve (default: {DEFAULT_MAX_TREE_COUNT})",
     )
 
-    return parser.parse_args()
+    try:
+        return parser.parse_known_args()[0]
+    except SystemExit:
+        return argparse.Namespace(
+            mlflow=False, draft=False, no_plot=False, max=DEFAULT_MAX_TREE_COUNT
+        )
 
 
 def start_mlflow(solver: BaseSolver | IncrementalSolver):
