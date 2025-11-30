@@ -63,6 +63,12 @@ def main() -> None:
     try:
         solution = solver.solve(problem_sizes=range(1, args.max + 1))
 
+        if not args.no_plot:
+            plotter.plot(
+                solution,
+                filter_fn=lambda n_tree: n_tree.tree_count % 10 == 0,
+            )
+
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
             score = SolutionScorer(solution).score()
@@ -77,12 +83,6 @@ def main() -> None:
             )
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
             score = DataFrameScorer(submission_df).score()
-
-        if not args.no_plot:
-            plotter.plot(
-                solution,
-                filter_fn=lambda n_tree: n_tree.tree_count % 10 == 0,
-            )
 
         if args.mlflow:
             mlflow.log_metric("submission_score", score)
