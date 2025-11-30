@@ -1,6 +1,5 @@
 import argparse
 import logging
-import random
 import sys
 
 import mlflow
@@ -8,7 +7,7 @@ import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
-from solver import BaselineIncrementalSolver
+from solver import BaseSolver, GridWithNearIdealAreaSolver, IncrementalSolver
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -46,19 +45,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def start_mlflow():
+def start_mlflow(solver: BaseSolver | IncrementalSolver):
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT_NAME)
-    return mlflow.start_run()
+    return mlflow.start_run(run_name=solver.__class__.__name__)
 
 
 def main() -> None:
     args = parse_args()
 
     plotter = Plotter()
-    solver = BaselineIncrementalSolver(rng=random.Random(42))
+    solver = GridWithNearIdealAreaSolver()
 
-    run = start_mlflow() if args.mlflow else None
+    run = start_mlflow(solver) if args.mlflow else None
 
     try:
         solution = solver.solve(problem_sizes=range(1, args.max + 1))

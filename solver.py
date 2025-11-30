@@ -24,6 +24,23 @@ class BaseSolver:
         raise NotImplementedError
 
 
+class GridWithNearIdealAreaSolver(BaseSolver):
+    def solve_n_tree(self, tree_count: int) -> NTree:
+        tree = ChristmasTree()
+        width, height = tree.sides
+        n_trees_area = width * height * tree_count
+        ideal_side = Decimal(math.sqrt(n_trees_area))
+        x_trees = math.ceil(ideal_side / width)
+        y_trees = (tree_count // x_trees) + 1
+        n_tree = NTree()
+        for y in range(y_trees):
+            for x in range(x_trees):
+                n_tree.add_tree(ChristmasTree(x * width, y * height))
+                if n_tree.tree_count >= tree_count:
+                    return n_tree
+        return n_tree
+
+
 class IncrementalSolver:
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem the specified n-tree sizes."""
