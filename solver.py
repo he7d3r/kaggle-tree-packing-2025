@@ -41,10 +41,10 @@ class BaselineIncrementalSolver:
         from scratch.
         """
         for _ in range(batch_size):
-            tree_to_place = ChristmasTree(angle=str(self.rng.uniform(0, 360)))
+            angle = Decimal(self.rng.uniform(0, 360))
             if not existing_trees.trees:
                 # Only place the first tree at origin if starting from scratch
-                existing_trees.add_tree(tree_to_place)
+                existing_trees.add_tree(ChristmasTree(angle=angle))
                 continue
             placed_polygons = existing_trees.polygons
             tree_index = STRtree(placed_polygons)
@@ -56,9 +56,9 @@ class BaselineIncrementalSolver:
             # This loop tries 10 random starting attempts and keeps the best one
             for _ in range(10):
                 # The new tree starts at a position 20 from the center, at a random vector angle.
-                angle = self.generate_weighted_angle()
-                vx = Decimal(str(math.cos(angle)))
-                vy = Decimal(str(math.sin(angle)))
+                vector_angle = self.generate_weighted_angle()
+                vx = Decimal(str(math.cos(vector_angle)))
+                vy = Decimal(str(math.sin(vector_angle)))
 
                 # Move towards center along the vector in steps of 0.5 until collision
                 radius = Decimal("20.0")
@@ -69,9 +69,7 @@ class BaselineIncrementalSolver:
                     px = radius * vx
                     py = radius * vy
 
-                    candidate_poly = ChristmasTree.translate_polygon(
-                        tree_to_place.polygon, px, py
-                    )
+                    candidate_poly = ChristmasTree(px, py, angle).polygon
 
                     # Looking for nearby objects
                     possible_indices = tree_index.query(candidate_poly)
@@ -95,9 +93,7 @@ class BaselineIncrementalSolver:
                         px = radius * vx
                         py = radius * vy
 
-                        candidate_poly = ChristmasTree.translate_polygon(
-                            tree_to_place.polygon, px, py
-                        )
+                        candidate_poly = ChristmasTree(px, py, angle).polygon
 
                         possible_indices = tree_index.query(candidate_poly)
                         if not any(
@@ -121,13 +117,7 @@ class BaselineIncrementalSolver:
                     best_px = px
                     best_py = py
 
-            tree_to_place.center_x = best_px
-            tree_to_place.center_y = best_py
-            tree_to_place.polygon = ChristmasTree.translate_polygon(
-                tree_to_place.polygon,
-                tree_to_place.center_x,
-                tree_to_place.center_y,
-            )
+            tree_to_place = ChristmasTree(best_px, best_py, angle)
             # Add the newly placed tree to the list
             existing_trees.add_tree(tree_to_place)
 

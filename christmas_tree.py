@@ -13,12 +13,18 @@ SCALE_FACTOR = Decimal("1e15")
 class ChristmasTree:
     """Represents a single, rotatable Christmas tree of a fixed size."""
 
-    def __init__(self, center_x="0", center_y="0", angle="0"):
+    def __init__(
+        self,
+        center_x: Decimal = Decimal("0"),
+        center_y: Decimal = Decimal("0"),
+        angle: Decimal = Decimal("0"),
+    ):
         """Initializes the Christmas tree with a specific position and rotation."""
-        self.center_x = Decimal(center_x)
-        self.center_y = Decimal(center_y)
-        self.angle = Decimal(angle)
+        self.polygon = self.initial_tree_polygon()
+        self.set_angle(angle)
+        self.set_center(center_x, center_y)
 
+    def initial_tree_polygon(self) -> Polygon:
         trunk_w = Decimal("0.15")
         trunk_h = Decimal("0.2")
         base_w = Decimal("0.7")
@@ -29,8 +35,7 @@ class ChristmasTree:
         tier_2_y = Decimal("0.25")
         base_y = Decimal("0.0")
         trunk_bottom_y = -trunk_h
-
-        initial_polygon = Polygon(
+        return Polygon(
             [
                 # Start at Tip
                 (Decimal("0.0") * SCALE_FACTOR, tip_y * SCALE_FACTOR),
@@ -82,19 +87,28 @@ class ChristmasTree:
                 ),
             ]
         )
-        rotated = ChristmasTree.rotate_polygon(initial_polygon, self.angle)
-        self.polygon = ChristmasTree.translate_polygon(
-            rotated, self.center_x, self.center_y
+
+    def set_angle(self, angle: Decimal) -> "ChristmasTree":
+        self.angle = angle
+        self.polygon = affinity.rotate(
+            self.polygon, float(angle), origin=(0, 0)
         )
+        return self
 
-    @staticmethod
-    def rotate_polygon(polygon: Polygon, angle: Decimal) -> Polygon:
-        return affinity.rotate(polygon, float(angle), origin=(0, 0))
+    def set_center(self, x: Decimal, y: Decimal) -> "ChristmasTree":
+        self.center_x = x
+        self.center_y = y
+        self.polygon = affinity.translate(
+            self.polygon,
+            xoff=float(x * SCALE_FACTOR),
+            yoff=float(y * SCALE_FACTOR),
+        )
+        return self
 
-    @staticmethod
-    def translate_polygon(polygon: Polygon, x: Decimal, y: Decimal) -> Polygon:
-        return affinity.translate(
-            polygon, xoff=float(x * SCALE_FACTOR), yoff=float(y * SCALE_FACTOR)
+    def __repr__(self) -> str:
+        return (
+            f"ChristmasTree(center_x={self.center_x}, center_y={self.center_y}, "
+            f"angle={self.angle})"
         )
 
 
@@ -142,7 +156,9 @@ class NTree:
     def from_dataframe(df: pd.DataFrame) -> "NTree":
         trees = [
             ChristmasTree(
-                center_x=row["x"], center_y=row["y"], angle=row["deg"]
+                center_x=Decimal(row["x"]),
+                center_y=Decimal(row["y"]),
+                angle=Decimal(row["deg"]),
             )
             for _, row in df.iterrows()
         ]
