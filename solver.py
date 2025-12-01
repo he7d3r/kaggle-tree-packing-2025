@@ -24,39 +24,59 @@ class BaseSolver:
         raise NotImplementedError
 
 
-class ColumnFirstGridLayoutSolver(BaseSolver):
+class AlternatingGridLayoutSolver(BaseSolver):
     def solve_n_tree(self, tree_count: int) -> NTree:
         """Arrange `tree_count` Christmas trees in a near-square grid."""
         unit = ChristmasTree()
         width, height = unit.sides
 
-        trees_per_row, rows_needed = self._estimate_grid_dimensions(
-            unit, tree_count
-        )
-
-        n_tree = NTree()
-        for col in range(trees_per_row):
-            for row in range(rows_needed):
-                x = col * width
-                y = row * height
-                n_tree.add_tree(ChristmasTree(x, y))
-
-                if n_tree.tree_count >= tree_count:
-                    return n_tree
-
-        return n_tree
-
-    def _estimate_grid_dimensions(
-        self, tree: ChristmasTree, count: int
-    ) -> tuple[int, int]:
-        width, height = tree.sides
-        total_area = width * height * count
+        total_area = width * height * tree_count
         ideal_square_side = Decimal(math.sqrt(total_area))
+        # Near-square estimate in counts
+        w = max(1, math.floor(ideal_square_side / width))  # candidate columns
+        h = max(1, math.floor(ideal_square_side / height))  # candidate rows
 
-        trees_per_row = math.ceil(ideal_square_side / width)
-        rows_needed = math.ceil(count / trees_per_row)
+        # Compute how many rows would be needed if we use w columns (col-first)
+        rows_needed_colfirst = math.ceil(tree_count / w)
 
-        return trees_per_row, rows_needed
+        # Compute how many columns would be needed if we use h rows (row-first)
+        cols_needed_rowfirst = math.ceil(tree_count / h)
+
+        # Physical bounding dimensions for col-first
+        w_colfirst = w * width
+        h_colfirst = rows_needed_colfirst * height
+
+        # Physical bounding dimensions for row-first
+        w_rowfirst = cols_needed_rowfirst * width
+        h_rowfirst = h * height
+
+        # Choose the orientation that yields smaller bounding square side
+        if max(w_colfirst, h_colfirst) < max(w_rowfirst, h_rowfirst):
+            # Position trees column by column
+            n_tree = NTree()
+            for col in range(w):
+                for row in range(rows_needed_colfirst):
+                    x = col * width
+                    y = row * height
+                    n_tree.add_tree(ChristmasTree(x, y))
+
+                    if n_tree.tree_count >= tree_count:
+                        return n_tree
+
+            return n_tree
+        else:
+            # Position trees row by row
+            n_tree = NTree()
+            for row in range(h):
+                for col in range(cols_needed_rowfirst):
+                    x = col * width
+                    y = row * height
+                    n_tree.add_tree(ChristmasTree(x, y))
+
+                    if n_tree.tree_count >= tree_count:
+                        return n_tree
+
+            return n_tree
 
 
 class IncrementalSolver:
