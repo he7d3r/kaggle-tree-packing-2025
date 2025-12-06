@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from decimal import Decimal, getcontext
 from functools import cached_property
@@ -86,6 +87,10 @@ class ChristmasTree:
     def sides(self) -> tuple[Decimal, Decimal]:
         minx, miny, maxx, maxy = self.bounds
         return maxx - minx, maxy - miny
+
+    @cached_property
+    def bounding_rectangle_area(self) -> Decimal:
+        return Decimal(math.prod(self.sides))
 
 
 @dataclass(frozen=True)

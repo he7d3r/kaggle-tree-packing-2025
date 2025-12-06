@@ -51,8 +51,7 @@ class Solver:
         return math.ceil(side / width)
 
     def _ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
-        tree_area = math.prod(tree.sides)
-        total_area = tree_area * n
+        total_area = tree.bounding_rectangle_area * n
         return Decimal(total_area).sqrt()
 
     def _grid_n_tree(
