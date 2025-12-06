@@ -21,14 +21,14 @@ class Solver:
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem the specified n-tree sizes."""
-        solution = Solution()
+        n_trees = []
         for tree_count in tqdm(problem_sizes, desc="Placing trees"):
             n_tree = self._solve_single(tree_count)
-            solution.add(n_tree)
-        return solution
+            n_trees.append(n_tree)
+        return Solution(n_trees=tuple(n_trees))
 
     def _solve_single(self, tree_count: int) -> NTree:
-        best = NTree()
+        best: NTree = NTree()
         best_length = math.inf
         for angle in self.ANGLES:
             tree = ChristmasTree(angle=Decimal(angle))
@@ -58,22 +58,22 @@ class Solver:
     def grid_n_tree(
         self, base_tree: ChristmasTree, n_trees: int, n_cols: int
     ) -> NTree:
-        """Arrange `tree_count` Christmas trees in a near-square grid."""
+        """Arrange `n_trees` Christmas trees in a near-square grid."""
         width, height = base_tree.sides
         n_rows = math.ceil(n_trees / n_cols)
 
-        # Create a new NTree and a new ChristmasTree for each grid cell
-        n_tree = NTree()
+        # Build tuple of ChristmasTree instances
+        trees = []
         for row in range(n_rows):
             for col in range(n_cols):
                 x = col * width
                 y = row * height
-                positioned = ChristmasTree(
+                tree = ChristmasTree(
                     center_x=x, center_y=y, angle=base_tree.angle
                 )
-                n_tree.add_tree(positioned)
+                trees.append(tree)
 
-                if n_tree.tree_count == n_trees:
-                    return n_tree
+                if len(trees) == n_trees:
+                    return NTree(trees=tuple(trees))
 
-        return n_tree
+        return NTree(trees=tuple(trees))

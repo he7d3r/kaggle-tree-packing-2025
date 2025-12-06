@@ -74,7 +74,7 @@ class SolutionScorer(BaseScorer):
     def __init__(self, solution: Solution):
         self.solution = solution
 
-    def n_trees(self) -> list[NTree]:
+    def n_trees(self) -> tuple[NTree, ...]:
         return self.solution.n_trees
 
 

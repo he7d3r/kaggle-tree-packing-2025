@@ -1,16 +1,15 @@
-from typing import Any
+from dataclasses import dataclass
 
 import pandas as pd
 
 from christmas_tree import NTree
 
 
+@dataclass(frozen=True)
 class Solution:
-    def __init__(self, n_trees: list[NTree] | None = None):
-        self.n_trees = n_trees if n_trees else []
+    """Immutable solution consisting of multiple NTree instances."""
 
-    def add(self, n_tree: NTree) -> None:
-        self.n_trees.append(n_tree)
+    n_trees: tuple[NTree, ...] = ()
 
     def to_dataframe(self) -> pd.DataFrame:
         """Creates a submission DataFrame from the Solution's n_trees data."""
@@ -37,13 +36,13 @@ class Solution:
     def from_dataframe(df: pd.DataFrame) -> "Solution":
         """Populates the Solution object from a DataFrame."""
         df = df.apply(lambda col: col.str.lstrip("s"))
-        n_trees = [
+        n_trees = tuple(
             NTree.from_dataframe(n_tree_df)
             for _, n_tree_df in Solution.n_tree_dfs(df)
-        ]
-        return Solution(n_trees)
+        )
+        return Solution(n_trees=n_trees)
 
     @staticmethod
-    def n_tree_dfs(df: pd.DataFrame) -> Any:
+    def n_tree_dfs(df: pd.DataFrame):
         """Extracts n-tree data-frames from the DataFrame."""
         return df.groupby(df.index.astype(str).str.split("_").str[0])

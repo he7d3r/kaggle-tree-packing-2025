@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from decimal import Decimal, getcontext
 from functools import cached_property
 
@@ -11,28 +12,25 @@ getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
 
 
+@dataclass(frozen=True)
 class ChristmasTree:
-    """Represents a single, rotatable Christmas tree of a fixed size."""
+    """Immutable single Christmas tree with fixed size and rotation/position."""
 
-    def __init__(
-        self,
-        center_x: Decimal = Decimal("0"),
-        center_y: Decimal = Decimal("0"),
-        angle: Decimal = Decimal("0"),
-    ):
-        """Initializes the Christmas tree with a specific position and rotation."""
-        self.angle: Decimal = angle
-        self.center_x: Decimal = center_x
-        self.center_y: Decimal = center_y
+    center_x: Decimal = Decimal("0")
+    center_y: Decimal = Decimal("0")
+    angle: Decimal = Decimal("0")
+    polygon: Polygon = field(init=False)
 
-        # Build the polygon once, rotate then translate
+    def __post_init__(self):
         poly = self.initial_tree_polygon()
-        rotated = affinity.rotate(poly, float(angle), origin=(0, 0))
-        self.polygon: Polygon = affinity.translate(
+        rotated = affinity.rotate(poly, float(self.angle), origin=(0, 0))
+        translated = affinity.translate(
             rotated,
-            xoff=float(center_x * SCALE_FACTOR),
-            yoff=float(center_y * SCALE_FACTOR),
+            xoff=float(self.center_x * SCALE_FACTOR),
+            yoff=float(self.center_y * SCALE_FACTOR),
         )
+        # Assign to frozen dataclass using object.__setattr__
+        object.__setattr__(self, "polygon", translated)
 
     def initial_tree_polygon(self) -> Polygon:
         trunk_w = Decimal("0.15")
@@ -47,23 +45,17 @@ class ChristmasTree:
         trunk_bottom_y = -trunk_h
         return Polygon(
             [
-                # Start at Tip
                 (Decimal("0.0") * SCALE_FACTOR, tip_y * SCALE_FACTOR),
-                # Right side - Top Tier
                 (top_w / Decimal("2") * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
                 (top_w / Decimal("4") * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
-                # Right side - Middle Tier
                 (mid_w / Decimal("2") * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
                 (mid_w / Decimal("4") * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
-                # Right side - Bottom Tier
                 (base_w / Decimal("2") * SCALE_FACTOR, base_y * SCALE_FACTOR),
-                # Right Trunk
                 (trunk_w / Decimal("2") * SCALE_FACTOR, base_y * SCALE_FACTOR),
                 (
                     trunk_w / Decimal("2") * SCALE_FACTOR,
                     trunk_bottom_y * SCALE_FACTOR,
                 ),
-                # Left Trunk
                 (
                     -(trunk_w / Decimal("2")) * SCALE_FACTOR,
                     trunk_bottom_y * SCALE_FACTOR,
@@ -72,12 +64,10 @@ class ChristmasTree:
                     -(trunk_w / Decimal("2")) * SCALE_FACTOR,
                     base_y * SCALE_FACTOR,
                 ),
-                # Left side - Bottom Tier
                 (
                     -(base_w / Decimal("2")) * SCALE_FACTOR,
                     base_y * SCALE_FACTOR,
                 ),
-                # Left side - Middle Tier
                 (
                     -(mid_w / Decimal("4")) * SCALE_FACTOR,
                     tier_2_y * SCALE_FACTOR,
@@ -86,7 +76,6 @@ class ChristmasTree:
                     -(mid_w / Decimal("2")) * SCALE_FACTOR,
                     tier_2_y * SCALE_FACTOR,
                 ),
-                # Left side - Top Tier
                 (
                     -(top_w / Decimal("4")) * SCALE_FACTOR,
                     tier_1_y * SCALE_FACTOR,
@@ -113,30 +102,20 @@ class ChristmasTree:
         minx, miny, maxx, maxy = self.bounds
         return maxx - minx, maxy - miny
 
-    def __repr__(self) -> str:
-        return (
-            f"ChristmasTree(center_x={self.center_x}, center_y={self.center_y}, "
-            f"angle={self.angle})"
-        )
 
-
+@dataclass(frozen=True)
 class NTree:
-    def __init__(self, trees: list[ChristmasTree] | None = None):
-        self.trees = trees or []
+    """Immutable collection of ChristmasTree objects."""
 
-    def add_tree(self, tree: ChristmasTree) -> None:
-        self.trees.append(tree)
-        self._invalidate_cache()
+    trees: tuple[ChristmasTree, ...] = ()
 
-    def _invalidate_cache(self):
-        """Invalidate cached geometric properties."""
-        for attr in ("_union", "bounds", "sides", "side_length"):
-            if attr in self.__dict__:
-                del self.__dict__[attr]
+    @cached_property
+    def tree_count(self) -> int:
+        return len(self.trees)
 
-    @property
-    def name(self) -> str:
-        return f"{self.tree_count:03d}"
+    @cached_property
+    def polygons(self) -> tuple[Polygon, ...]:
+        return tuple(t.polygon for t in self.trees)
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
@@ -155,25 +134,20 @@ class NTree:
 
     @cached_property
     def side_length(self) -> Decimal:
-        # Force a square bounding with the largest side
         return max(self.sides)
 
     @property
-    def polygons(self) -> list[Polygon]:
-        return [t.polygon for t in self.trees]
-
-    @property
-    def tree_count(self) -> int:
-        return len(self.trees)
+    def name(self) -> str:
+        return f"{self.tree_count:03d}"
 
     @staticmethod
     def from_dataframe(df: pd.DataFrame) -> "NTree":
-        trees = [
+        trees = tuple(
             ChristmasTree(
                 center_x=Decimal(row["x"]),
                 center_y=Decimal(row["y"]),
                 angle=Decimal(row["deg"]),
             )
             for _, row in df.iterrows()
-        ]
-        return NTree(trees)
+        )
+        return NTree(trees=trees)
