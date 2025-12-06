@@ -6,7 +6,7 @@ import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
-from solver import AlternatingGridLayoutSolver, BaseSolver
+from solver import BaseSolver, GridWithRotationSolver
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -90,7 +90,7 @@ def main() -> None:
     args = parse_args()
 
     plotter = Plotter()
-    solver = AlternatingGridLayoutSolver()
+    solver = GridWithRotationSolver()
 
     run = start_mlflow(solver) if args.mlflow else None
 

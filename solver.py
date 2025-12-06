@@ -14,64 +14,62 @@ class BaseSolver:
         """Solves the tree placement problem the specified n-tree sizes."""
         solution = Solution()
         for tree_count in tqdm(problem_sizes, desc="Placing trees"):
-            n_tree = self.solve_n_tree(tree_count)
+            n_tree = self._solve_single(tree_count)
             solution.add(copy.deepcopy(n_tree))
         return solution
 
-    def solve_n_tree(self, tree_count: int) -> NTree:
+    def _solve_single(self, tree_count: int) -> NTree:
         raise NotImplementedError
 
 
-class AlternatingGridLayoutSolver(BaseSolver):
-    def solve_n_tree(self, tree_count: int) -> NTree:
+class GridWithRotationSolver(BaseSolver):
+    ANGLES: tuple[int, ...] = (0, 90)
+    WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
+
+    def _solve_single(self, tree_count: int) -> NTree:
+        best = NTree()
+        best_length = math.inf
+        for angle in self.ANGLES:
+            tree = ChristmasTree(angle=Decimal(angle))
+            base_n_cols = self.estimate_n_cols(tree_count, tree)
+            for increment in self.WIDTH_INCREMENTS:
+                n_cols = base_n_cols + increment
+                if n_cols < 1:
+                    continue
+                n_tree = self.grid_n_tree(tree, tree_count, n_cols)
+                side_length = n_tree.side_length
+                if side_length < best_length:
+                    best = n_tree
+                    best_length = side_length
+        return best
+
+    def estimate_n_cols(self, tree_count: int, tree: ChristmasTree) -> int:
+        side = self.ideal_square_side(tree, tree_count)
+        width = tree.sides[0]
+        # Near-square estimate
+        return math.ceil(side / width)
+
+    def ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
+        tree_area = math.prod(tree.sides)
+        total_area = tree_area * n
+        return Decimal(total_area).sqrt()
+
+    def grid_n_tree(
+        self, base_tree: ChristmasTree, n_trees: int, n_cols: int
+    ) -> NTree:
         """Arrange `tree_count` Christmas trees in a near-square grid."""
-        unit = ChristmasTree()
-        width, height = unit.sides
+        width, height = base_tree.sides
+        n_rows = math.ceil(n_trees / n_cols)
 
-        total_area = width * height * tree_count
-        ideal_square_side = Decimal(math.sqrt(total_area))
+        # Position copies of the base tree, row by row
+        n_tree = NTree()
+        for row in range(n_rows):
+            for col in range(n_cols):
+                x = col * width
+                y = row * height
+                n_tree.add_tree(copy.deepcopy(base_tree).set_center(x, y))
 
-        # Near-square estimate in counts
-        w = max(1, math.ceil(ideal_square_side / width))  # candidate columns
-        h = max(1, math.ceil(ideal_square_side / height))  # candidate rows
+                if n_tree.tree_count == n_trees:
+                    return n_tree
 
-        # Compute how many rows would be needed if we use w columns (row-first)
-        rows_needed_rowfirst = math.ceil(tree_count / w)
-
-        # Compute how many columns would be needed if we use h rows (col-first)
-        cols_needed_colfirst = math.ceil(tree_count / h)
-
-        # Physical bounding dimensions for col-first
-        w_rowfirst = w * width
-        h_rowfirst = rows_needed_rowfirst * height
-
-        # Physical bounding dimensions for row-first
-        w_colfirst = cols_needed_colfirst * width
-        h_colfirst = h * height
-
-        if max(w_rowfirst, h_rowfirst) < max(w_colfirst, h_colfirst):
-            # Position trees row by row
-            n_tree = NTree()
-            for row in range(rows_needed_rowfirst):
-                for col in range(w):
-                    x = col * width
-                    y = row * height
-                    n_tree.add_tree(ChristmasTree(x, y))
-
-                    if n_tree.tree_count == tree_count:
-                        return n_tree
-
-            return n_tree
-        else:
-            # Position trees column by column
-            n_tree = NTree()
-            for col in range(cols_needed_colfirst):
-                for row in range(h):
-                    x = col * width
-                    y = row * height
-                    n_tree.add_tree(ChristmasTree(x, y))
-
-                    if n_tree.tree_count == tree_count:
-                        return n_tree
-
-            return n_tree
+        return n_tree
