@@ -33,7 +33,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--draft", action="store_true", help="Skip output file creation"
     )
-    parser.add_argument("--no-plot", action="store_true", help="Skip plotting")
+
+    parser.add_argument(
+        "--plot-every",
+        type=int,
+        default=10,
+        help=(
+            "Plot every N trees (e.g. 10 = plot each 10th tree). "
+            "Use 0 to disable plotting entirely. Default: 10."
+        ),
+    )
+
     parser.add_argument(
         "--max",
         type=int,
@@ -45,7 +55,7 @@ def parse_args() -> argparse.Namespace:
         return parser.parse_known_args()[0]
     except SystemExit:
         return argparse.Namespace(
-            mlflow=False, draft=False, no_plot=False, max=DEFAULT_MAX_TREE_COUNT
+            mlflow=False, draft=False, plot_every=10, max=DEFAULT_MAX_TREE_COUNT
         )
 
 
@@ -97,11 +107,14 @@ def main() -> None:
     try:
         solution = solver.solve(problem_sizes=range(1, args.max + 1))
 
-        if not args.no_plot:
+        if args.plot_every > 0:
             plotter.plot(
                 solution,
-                filter_fn=lambda n_tree: n_tree.tree_count % 10 == 0,
+                filter_fn=lambda n_tree: (n_tree.tree_count % args.plot_every)
+                == 0,
             )
+        else:
+            logger.info("Plotting disabled (--plot-every=0)")
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
@@ -127,8 +140,8 @@ def main() -> None:
 
         logger.info("Submission score: %s.", score)
 
-        # Display images in notebook environment after execution
-        if in_notebook() and not args.no_plot:
+        # Display images in notebook
+        if in_notebook() and args.plot_every > 0:
             display_notebook_images()
 
     except Exception as e:
