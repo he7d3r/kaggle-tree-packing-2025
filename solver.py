@@ -21,11 +21,11 @@ class Solver:
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem the specified n-tree sizes."""
-        n_trees = []
-        for tree_count in tqdm(problem_sizes, desc="Placing trees"):
-            n_tree = self._solve_single(tree_count)
-            n_trees.append(n_tree)
-        return Solution(n_trees=tuple(n_trees))
+        n_trees = tuple(
+            self._solve_single(tree_count)
+            for tree_count in tqdm(problem_sizes, desc="Placing trees")
+        )
+        return Solution(n_trees=n_trees)
 
     def _solve_single(self, tree_count: int) -> NTree:
         best: NTree = NTree()
