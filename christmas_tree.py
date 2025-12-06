@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from decimal import Decimal, getcontext
 from functools import cached_property
+from typing import cast
 
 import pandas as pd
 from shapely import affinity
@@ -10,6 +11,15 @@ from shapely.ops import unary_union
 # Set precision for Decimal
 getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
+
+
+def scaled_bounds(
+    bounds: tuple[float, float, float, float],
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    return cast(
+        tuple[Decimal, Decimal, Decimal, Decimal],
+        tuple(Decimal(v) / SCALE_FACTOR for v in bounds),
+    )
 
 
 @dataclass(frozen=True)
@@ -43,59 +53,34 @@ class ChristmasTree:
         tier_2_y = Decimal("0.25")
         base_y = Decimal("0.0")
         trunk_bottom_y = -trunk_h
-        return Polygon(
-            [
-                (Decimal("0.0") * SCALE_FACTOR, tip_y * SCALE_FACTOR),
-                (top_w / Decimal("2") * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
-                (top_w / Decimal("4") * SCALE_FACTOR, tier_1_y * SCALE_FACTOR),
-                (mid_w / Decimal("2") * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
-                (mid_w / Decimal("4") * SCALE_FACTOR, tier_2_y * SCALE_FACTOR),
-                (base_w / Decimal("2") * SCALE_FACTOR, base_y * SCALE_FACTOR),
-                (trunk_w / Decimal("2") * SCALE_FACTOR, base_y * SCALE_FACTOR),
-                (
-                    trunk_w / Decimal("2") * SCALE_FACTOR,
-                    trunk_bottom_y * SCALE_FACTOR,
-                ),
-                (
-                    -(trunk_w / Decimal("2")) * SCALE_FACTOR,
-                    trunk_bottom_y * SCALE_FACTOR,
-                ),
-                (
-                    -(trunk_w / Decimal("2")) * SCALE_FACTOR,
-                    base_y * SCALE_FACTOR,
-                ),
-                (
-                    -(base_w / Decimal("2")) * SCALE_FACTOR,
-                    base_y * SCALE_FACTOR,
-                ),
-                (
-                    -(mid_w / Decimal("4")) * SCALE_FACTOR,
-                    tier_2_y * SCALE_FACTOR,
-                ),
-                (
-                    -(mid_w / Decimal("2")) * SCALE_FACTOR,
-                    tier_2_y * SCALE_FACTOR,
-                ),
-                (
-                    -(top_w / Decimal("4")) * SCALE_FACTOR,
-                    tier_1_y * SCALE_FACTOR,
-                ),
-                (
-                    -(top_w / Decimal("2")) * SCALE_FACTOR,
-                    tier_1_y * SCALE_FACTOR,
-                ),
-            ]
+
+        # List of points (unscaled)
+        points: tuple[tuple[Decimal, Decimal], ...] = (
+            (Decimal("0.0"), tip_y),
+            (top_w / 2, tier_1_y),
+            (top_w / 4, tier_1_y),
+            (mid_w / 2, tier_2_y),
+            (mid_w / 4, tier_2_y),
+            (base_w / 2, base_y),
+            (trunk_w / 2, base_y),
+            (trunk_w / 2, trunk_bottom_y),
+            (-(trunk_w / 2), trunk_bottom_y),
+            (-(trunk_w / 2), base_y),
+            (-(base_w / 2), base_y),
+            (-(mid_w / 4), tier_2_y),
+            (-(mid_w / 2), tier_2_y),
+            (-(top_w / 4), tier_1_y),
+            (-(top_w / 2), tier_1_y),
         )
+        # Scale all points
+        scaled_points = tuple(
+            (x * SCALE_FACTOR, y * SCALE_FACTOR) for x, y in points
+        )
+        return Polygon(scaled_points)
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        minx, miny, maxx, maxy = self.polygon.bounds
-        return (
-            Decimal(minx) / SCALE_FACTOR,
-            Decimal(miny) / SCALE_FACTOR,
-            Decimal(maxx) / SCALE_FACTOR,
-            Decimal(maxy) / SCALE_FACTOR,
-        )
+        return scaled_bounds(self.polygon.bounds)
 
     @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
@@ -119,13 +104,7 @@ class NTree:
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        minx, miny, maxx, maxy = unary_union(self.polygons).bounds
-        return (
-            Decimal(minx) / SCALE_FACTOR,
-            Decimal(miny) / SCALE_FACTOR,
-            Decimal(maxx) / SCALE_FACTOR,
-            Decimal(maxy) / SCALE_FACTOR,
-        )
+        return scaled_bounds(unary_union(self.polygons).bounds)
 
     @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
