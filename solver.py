@@ -9,7 +9,17 @@ from christmas_tree import ChristmasTree, NTree
 from solution import Solution
 
 
-class BaseSolver:
+def get_default_solver() -> "Solver":
+    return Solver(name="GridWithRotationSolver")
+
+
+class Solver:
+    ANGLES: tuple[int, ...] = (0, 90)
+    WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
+
+    def __init__(self, name: str):
+        self.name = name
+
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem the specified n-tree sizes."""
         solution = Solution()
@@ -17,14 +27,6 @@ class BaseSolver:
             n_tree = self._solve_single(tree_count)
             solution.add(copy.deepcopy(n_tree))
         return solution
-
-    def _solve_single(self, tree_count: int) -> NTree:
-        raise NotImplementedError
-
-
-class GridWithRotationSolver(BaseSolver):
-    ANGLES: tuple[int, ...] = (0, 90)
-    WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
 
     def _solve_single(self, tree_count: int) -> NTree:
         best = NTree()

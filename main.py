@@ -6,7 +6,7 @@ import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
-from solver import BaseSolver, GridWithRotationSolver
+from solver import Solver, get_default_solver
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -59,12 +59,12 @@ def parse_args() -> argparse.Namespace:
         )
 
 
-def start_mlflow(solver: BaseSolver):
+def start_mlflow(solver: Solver):
     import mlflow
 
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT_NAME)
-    return mlflow.start_run(run_name=solver.__class__.__name__)
+    return mlflow.start_run(run_name=solver.name)
 
 
 def in_notebook():
@@ -100,7 +100,7 @@ def main() -> None:
     args = parse_args()
 
     plotter = Plotter()
-    solver = GridWithRotationSolver()
+    solver = get_default_solver()
 
     run = start_mlflow(solver) if args.mlflow else None
 
