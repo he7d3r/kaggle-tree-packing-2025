@@ -59,20 +59,14 @@ class Solver:
     ) -> NTree:
         """Arrange `n_trees` Christmas trees in a near-square grid."""
         width, height = base_tree.sides
-        n_rows = math.ceil(n_trees / n_cols)
 
-        # Build tuple of ChristmasTree instances
         trees = []
-        for row in range(n_rows):
-            for col in range(n_cols):
-                x = col * width
-                y = row * height
-                tree = ChristmasTree(
-                    center_x=x, center_y=y, angle=base_tree.angle
-                )
-                trees.append(tree)
-
-                if len(trees) == n_trees:
-                    return NTree(trees=tuple(trees))
+        for t in range(n_trees):
+            col = t % n_cols
+            row = t // n_cols
+            x = col * width
+            y = row * height
+            tree = ChristmasTree(center_x=x, center_y=y, angle=base_tree.angle)
+            trees.append(tree)
 
         return NTree(trees=tuple(trees))
