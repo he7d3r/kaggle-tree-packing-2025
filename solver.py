@@ -32,30 +32,30 @@ class Solver:
         best_length = math.inf
         for angle in self.ANGLES:
             tree = ChristmasTree(angle=Decimal(angle))
-            base_n_cols = self.estimate_n_cols(tree_count, tree)
+            base_n_cols = self._estimate_n_cols(tree_count, tree)
             for increment in self.WIDTH_INCREMENTS:
                 n_cols = base_n_cols + increment
                 if n_cols < 1:
                     continue
-                n_tree = self.grid_n_tree(tree, tree_count, n_cols)
+                n_tree = self._grid_n_tree(tree, tree_count, n_cols)
                 side_length = n_tree.side_length
                 if side_length < best_length:
                     best = n_tree
                     best_length = side_length
         return best
 
-    def estimate_n_cols(self, tree_count: int, tree: ChristmasTree) -> int:
-        side = self.ideal_square_side(tree, tree_count)
+    def _estimate_n_cols(self, tree_count: int, tree: ChristmasTree) -> int:
+        side = self._ideal_square_side(tree, tree_count)
         width = tree.sides[0]
         # Near-square estimate
         return math.ceil(side / width)
 
-    def ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
+    def _ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
         tree_area = math.prod(tree.sides)
         total_area = tree_area * n
         return Decimal(total_area).sqrt()
 
-    def grid_n_tree(
+    def _grid_n_tree(
         self, base_tree: ChristmasTree, n_trees: int, n_cols: int
     ) -> NTree:
         """Arrange `n_trees` Christmas trees in a near-square grid."""
