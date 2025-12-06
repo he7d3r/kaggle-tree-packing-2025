@@ -1,4 +1,3 @@
-import copy
 import math
 from decimal import Decimal
 from typing import Sequence
@@ -25,7 +24,7 @@ class Solver:
         solution = Solution()
         for tree_count in tqdm(problem_sizes, desc="Placing trees"):
             n_tree = self._solve_single(tree_count)
-            solution.add(copy.deepcopy(n_tree))
+            solution.add(n_tree)
         return solution
 
     def _solve_single(self, tree_count: int) -> NTree:
@@ -63,13 +62,16 @@ class Solver:
         width, height = base_tree.sides
         n_rows = math.ceil(n_trees / n_cols)
 
-        # Position copies of the base tree, row by row
+        # Create a new NTree and a new ChristmasTree for each grid cell
         n_tree = NTree()
         for row in range(n_rows):
             for col in range(n_cols):
                 x = col * width
                 y = row * height
-                n_tree.add_tree(copy.deepcopy(base_tree).set_center(x, y))
+                positioned = ChristmasTree(
+                    center_x=x, center_y=y, angle=base_tree.angle
+                )
+                n_tree.add_tree(positioned)
 
                 if n_tree.tree_count == n_trees:
                     return n_tree
