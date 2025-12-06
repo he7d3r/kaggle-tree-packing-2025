@@ -6,7 +6,7 @@ import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
-from solver import AlternatingGridLayoutSolver, BaseSolver, IncrementalSolver
+from solver import AlternatingGridLayoutSolver, BaseSolver
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
         )
 
 
-def start_mlflow(solver: BaseSolver | IncrementalSolver):
+def start_mlflow(solver: BaseSolver):
     import mlflow
 
     mlflow.set_tracking_uri(TRACKING_URI)
