@@ -33,7 +33,8 @@ class Solver:
         for angle in self.ANGLES:
             tree = ChristmasTree(angle=Decimal(angle))
             dx, dy = self._compute_dx_dy(tree)
-            base_n_cols = self._estimate_n_cols(tree_count, tree)
+            side = self._ideal_square_side(tree, tree_count)
+            base_n_cols = self._estimate_n_cols(side, dx)
             for increment in self.WIDTH_INCREMENTS:
                 n_cols = base_n_cols + increment
                 if n_cols < 1:
@@ -49,11 +50,9 @@ class Solver:
         dx, dy = tree.sides
         return dx, dy
 
-    def _estimate_n_cols(self, tree_count: int, tree: ChristmasTree) -> int:
-        side = self._ideal_square_side(tree, tree_count)
-        width = tree.sides[0]
+    def _estimate_n_cols(self, side: Decimal, dx: Decimal) -> int:
         # Near-square estimate
-        return math.ceil(side / width)
+        return math.ceil(side / dx)
 
     def _ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
         total_area = tree.bounding_rectangle_area * n
