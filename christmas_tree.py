@@ -21,9 +21,18 @@ class ChristmasTree:
         angle: Decimal = Decimal("0"),
     ):
         """Initializes the Christmas tree with a specific position and rotation."""
-        self.polygon = self.initial_tree_polygon()
-        self.set_angle(angle)
-        self.set_center(center_x, center_y)
+        self.angle: Decimal = angle
+        self.center_x: Decimal = center_x
+        self.center_y: Decimal = center_y
+
+        # Build the polygon once, rotate then translate
+        poly = self.initial_tree_polygon()
+        rotated = affinity.rotate(poly, float(angle), origin=(0, 0))
+        self.polygon: Polygon = affinity.translate(
+            rotated,
+            xoff=float(center_x * SCALE_FACTOR),
+            yoff=float(center_y * SCALE_FACTOR),
+        )
 
     def initial_tree_polygon(self) -> Polygon:
         trunk_w = Decimal("0.15")
@@ -88,31 +97,6 @@ class ChristmasTree:
                 ),
             ]
         )
-
-    def set_angle(self, angle: Decimal) -> "ChristmasTree":
-        self.angle = angle
-        self.polygon = affinity.rotate(
-            self.polygon, float(angle), origin=(0, 0)
-        )
-        self._invalidate_cache()
-        return self
-
-    def set_center(self, x: Decimal, y: Decimal) -> "ChristmasTree":
-        self.center_x = x
-        self.center_y = y
-        self.polygon = affinity.translate(
-            self.polygon,
-            xoff=float(x * SCALE_FACTOR),
-            yoff=float(y * SCALE_FACTOR),
-        )
-        self._invalidate_cache()
-        return self
-
-    def _invalidate_cache(self):
-        # Remove cached attributes (if they exist)
-        for attr in ("bounds", "sides"):
-            if attr in self.__dict__:
-                del self.__dict__[attr]
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
