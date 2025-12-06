@@ -14,13 +14,19 @@ getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
 
 
-def scaled_bounds(
+def unscaled_bounds(
     bounds: tuple[float, float, float, float],
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     return cast(
         tuple[Decimal, Decimal, Decimal, Decimal],
         tuple(Decimal(v) / SCALE_FACTOR for v in bounds),
     )
+
+
+def scaled_points(
+    points: tuple[tuple[Decimal, Decimal], ...],
+) -> tuple[tuple[Decimal, Decimal], ...]:
+    return tuple((x * SCALE_FACTOR, y * SCALE_FACTOR) for x, y in points)
 
 
 @dataclass(frozen=True)
@@ -73,15 +79,11 @@ class ChristmasTree:
             (-(top_w / 4), tier_1_y),
             (-(top_w / 2), tier_1_y),
         )
-        # Scale all points
-        scaled_points = tuple(
-            (x * SCALE_FACTOR, y * SCALE_FACTOR) for x, y in points
-        )
-        return Polygon(scaled_points)
+        return Polygon(scaled_points(points))
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        return scaled_bounds(self.polygon.bounds)
+        return unscaled_bounds(self.polygon.bounds)
 
     @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
@@ -109,7 +111,7 @@ class NTree:
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        return scaled_bounds(unary_union(self.polygons).bounds)
+        return unscaled_bounds(unary_union(self.polygons).bounds)
 
     @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
