@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 
 import pandas as pd
@@ -13,6 +14,11 @@ class ParticipantVisibleError(Exception):
     pass
 
 
+def _score_n_tree_helper(args):
+    scorer, n_tree = args
+    return scorer._score_n_tree(n_tree)
+
+
 class BaseScorer:
     """
     Santa 2025 Metric
@@ -26,9 +32,21 @@ class BaseScorer:
     def score(self) -> float:
         self.preprocess()
 
+        n_tree_list = self.n_trees()
         total_score = Decimal("0")
-        for n_tree in tqdm(self.n_trees(), desc="Scoring"):
-            total_score += self._score_n_tree(n_tree)
+
+        with ProcessPoolExecutor() as executor:
+            results = tqdm(
+                executor.map(
+                    _score_n_tree_helper,
+                    ((self, n_tree) for n_tree in n_tree_list),
+                ),
+                total=len(n_tree_list),
+                desc="Scoring (parallel)",
+            )
+
+            for val in results:
+                total_score += val
 
         return float(total_score)
 

@@ -12,7 +12,9 @@ from solution import Solution
 
 
 def get_default_solver() -> "Solver":
-    return Solver(name="Tighter grid with 5 by 5 degree rotations")
+    return Solver(
+        name="Tighter grid with 5 by 5 degree rotations + ProcessPoolExecutor"
+    )
 
 
 def _solve_single_helper(args):
