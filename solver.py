@@ -2,18 +2,20 @@ import math
 from decimal import Decimal
 from typing import Sequence
 
+from shapely import affinity
+from shapely.geometry import Polygon
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree, NTree
+from christmas_tree import ChristmasTree, NTree, to_scale
 from solution import Solution
 
 
 def get_default_solver() -> "Solver":
-    return Solver(name="GridWithRotationSolver")
+    return Solver(name="Tighter Grid With Smaller Rotation")
 
 
 class Solver:
-    ANGLES: tuple[int, ...] = (0, 90)
+    ANGLES: tuple[int, ...] = (0, 30, 60, 90)
     WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
 
     def __init__(self, name: str):
@@ -47,8 +49,36 @@ class Solver:
         return best
 
     def _compute_dx_dy(self, tree):
-        dx, dy = tree.sides
-        return dx, dy
+        """
+        Compute minimal horizontal and vertical offsets such that a translated
+        copy of the polygon into either direction by the corresponding offset
+        does not overlap (touching is allowed).
+        """
+        width, height = tree.sides
+        dx_step_in = width / 32
+        dy_step_in = height / 32
+        dx = width
+        dy = height
+        polygon = tree.polygon
+        while dx > 0:
+            moved = affinity.translate(
+                polygon, xoff=float(to_scale(dx)), yoff=0.0
+            )
+            if self._relevant_collision(moved, polygon):
+                break
+            dx -= dx_step_in
+        # FIXME: The tree at (0, 1) could collide with (1, 0) but not (0, 0)
+        while dy > 0:
+            moved = affinity.translate(
+                polygon, xoff=0.0, yoff=float(to_scale(dy))
+            )
+            if self._relevant_collision(moved, polygon):
+                break
+            dy -= dy_step_in
+        return dx + dx_step_in, dy + dy_step_in
+
+    def _relevant_collision(self, a: Polygon, b: Polygon) -> bool:
+        return a.intersects(b) and not a.touches(b)
 
     def _estimate_n_cols(self, side: Decimal, dx: Decimal) -> int:
         # Near-square estimate
