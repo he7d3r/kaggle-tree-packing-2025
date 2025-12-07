@@ -1,4 +1,5 @@
 import math
+from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 from typing import Sequence
 
@@ -14,6 +15,11 @@ def get_default_solver() -> "Solver":
     return Solver(name="Tighter grid with 5 by 5 degree rotations")
 
 
+def _solve_single_helper(args):
+    solver, tree_count = args
+    return solver._solve_single(tree_count)
+
+
 class Solver:
     ANGLES: tuple[int, ...] = tuple(range(0, 90 + 5, 5))
     WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
@@ -23,11 +29,18 @@ class Solver:
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem the specified n-tree sizes."""
-        n_trees = tuple(
-            self._solve_single(tree_count)
-            for tree_count in tqdm(problem_sizes, desc="Placing trees")
-        )
-        return Solution(n_trees=n_trees)
+        with ProcessPoolExecutor() as executor:
+            n_trees = list(
+                tqdm(
+                    executor.map(
+                        _solve_single_helper,
+                        ((self, tree_count) for tree_count in problem_sizes),
+                    ),
+                    total=len(problem_sizes),
+                    desc="Placing trees",
+                )
+            )
+        return Solution(n_trees=tuple(n_trees))
 
     def _solve_single(self, tree_count: int) -> NTree:
         best: NTree = NTree()
