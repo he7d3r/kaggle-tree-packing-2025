@@ -8,7 +8,7 @@ from matplotlib.patches import Rectangle
 from numpy.typing import NDArray
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, ChristmasTree, NTree
+from christmas_tree import ChristmasTree, NTree, from_scale
 from solution import Solution
 
 
@@ -94,7 +94,7 @@ class Plotter:
     ) -> None:
         # Rescale for plotting
         x_scaled, y_scaled = tree.polygon.exterior.xy
-        x = [Decimal(val) / SCALE_FACTOR for val in x_scaled]
-        y = [Decimal(val) / SCALE_FACTOR for val in y_scaled]
+        x = [from_scale(val) for val in x_scaled]
+        y = [from_scale(val) for val in y_scaled]
         ax.plot(x, y, color=color)
         ax.fill(x, y, alpha=0.5, color=color)

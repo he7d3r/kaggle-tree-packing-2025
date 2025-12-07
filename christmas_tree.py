@@ -14,19 +14,27 @@ getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
 
 
+def to_scale(value: Decimal) -> Decimal:
+    return value * SCALE_FACTOR
+
+
+def from_scale(value: float) -> Decimal:
+    return Decimal(value) / SCALE_FACTOR
+
+
 def unscaled_bounds(
     bounds: tuple[float, float, float, float],
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     return cast(
         tuple[Decimal, Decimal, Decimal, Decimal],
-        tuple(Decimal(v) / SCALE_FACTOR for v in bounds),
+        tuple(from_scale(v) for v in bounds),
     )
 
 
 def scaled_points(
     points: tuple[tuple[Decimal, Decimal], ...],
 ) -> tuple[tuple[Decimal, Decimal], ...]:
-    return tuple((x * SCALE_FACTOR, y * SCALE_FACTOR) for x, y in points)
+    return tuple((to_scale(x), to_scale(y)) for x, y in points)
 
 
 @dataclass(frozen=True)
@@ -43,8 +51,8 @@ class ChristmasTree:
         rotated = affinity.rotate(poly, float(self.angle), origin=(0, 0))
         translated = affinity.translate(
             rotated,
-            xoff=float(self.center_x * SCALE_FACTOR),
-            yoff=float(self.center_y * SCALE_FACTOR),
+            xoff=float(to_scale(self.center_x)),
+            yoff=float(to_scale(self.center_y)),
         )
         # Assign to frozen dataclass using object.__setattr__
         object.__setattr__(self, "polygon", translated)

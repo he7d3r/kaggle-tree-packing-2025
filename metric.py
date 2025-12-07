@@ -5,7 +5,7 @@ from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import SCALE_FACTOR, NTree
+from christmas_tree import NTree, from_scale
 from solution import Solution
 
 
@@ -63,11 +63,7 @@ class BaseScorer:
         bounds = unary_union(polygons).bounds
         side_length_scaled = max(bounds[2] - bounds[0], bounds[3] - bounds[1])
 
-        return (
-            (Decimal(side_length_scaled) ** 2)
-            / (SCALE_FACTOR**2)
-            / Decimal(len(polygons))
-        )
+        return (from_scale(side_length_scaled) ** 2) / Decimal(len(polygons))
 
 
 class SolutionScorer(BaseScorer):
