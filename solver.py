@@ -67,21 +67,22 @@ def _bisect_offset(
 
 @dataclass(frozen=True)
 class RotatedTreeGridParams:
-    """Hashable/frozen class to store pre-computed grid parameters."""
+    """Hashable/frozen class to store pre-computed grid and area parameters."""
 
     angle: Decimal
     dx: Decimal
     dy: Decimal
+    bounding_rectangle_area: Decimal
 
     @classmethod
     def from_angle(cls, angle: Decimal) -> "RotatedTreeGridParams":
         """
-        Computes dx and dy for a given angle and returns a new instance.
-        This method replaces the functionality of Solver._compute_dx_dy.
+        Computes dx, dy, and bounding_rectangle_area for a given angle.
         """
         tree = ChristmasTree(angle=angle)
         width, height = tree.sides
         polygon = tree.polygon
+        bounding_rectangle_area = tree.bounding_rectangle_area
 
         # Find minimal horizontal offset (dx)
         dx = _bisect_offset(
@@ -99,7 +100,12 @@ class RotatedTreeGridParams:
             tolerance=BISECTION_TOLERANCE,
         )
 
-        return cls(angle=angle, dx=dx, dy=dy)
+        return cls(
+            angle=angle,
+            dx=dx,
+            dy=dy,
+            bounding_rectangle_area=bounding_rectangle_area,
+        )
 
 
 def get_default_solver(parallel: bool = True) -> "Solver":
@@ -142,7 +148,6 @@ class Solver:
         """Solves the tree placement problem for the specified n-tree sizes."""
 
         if not self.parallel:
-            # Sequential – simple & profiler-friendly
             n_trees = [
                 self._solve_single(tree_count)
                 for tree_count in tqdm(
@@ -151,7 +156,6 @@ class Solver:
             ]
             return Solution(n_trees=tuple(n_trees))
 
-        # Parallel version
         with ProcessPoolExecutor() as executor:
             n_trees = list(
                 tqdm(
@@ -175,15 +179,25 @@ class Solver:
         best_length = math.inf
 
         for params in self._GRID_PARAMS:
-            angle, dx, dy = params.angle, params.dx, params.dy
-            tree = ChristmasTree(angle=angle)
-            side = self._ideal_square_side(tree, tree_count)
+            angle, dx, dy, bounding_rectangle_area = (
+                params.angle,
+                params.dx,
+                params.dy,
+                params.bounding_rectangle_area,
+            )
+            side = self._ideal_square_side(bounding_rectangle_area, tree_count)
             base_n_cols = self._estimate_n_cols(side, dx)
             for increment in self.WIDTH_INCREMENTS:
                 n_cols = base_n_cols + increment
                 if n_cols < 1:
                     continue
-                n_tree = self._grid_n_tree(tree, tree_count, n_cols, dx, dy)
+                n_tree = self._grid_n_tree(
+                    angle=angle,
+                    n_trees=tree_count,
+                    n_cols=n_cols,
+                    dx=dx,
+                    dy=dy,
+                )
                 side_length = n_tree.side_length
                 if side_length < best_length:
                     best = n_tree
@@ -191,26 +205,30 @@ class Solver:
         return best
 
     def _estimate_n_cols(self, side: Decimal, dx: Decimal) -> int:
+        # Near-square estimate
         return math.ceil(side / dx)
 
-    def _ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
-        total_area = tree.bounding_rectangle_area * n
+    def _ideal_square_side(
+        self, bounding_rectangle_area: Decimal, n: int
+    ) -> Decimal:
+        """Calculates ideal square side using pre-computed area factor."""
+        total_area = bounding_rectangle_area * n
         return Decimal(total_area).sqrt()
 
     def _grid_n_tree(
         self,
-        base_tree: ChristmasTree,
+        angle: Decimal,
         n_trees: int,
         n_cols: int,
         dx: Decimal,
         dy: Decimal,
     ) -> NTree:
-        """Arrange `n_trees` Christmas trees in a near-square grid."""
+        """Arrange `n_trees` rotated Christmas trees in a near-square grid."""
         trees = tuple(
             ChristmasTree(
                 center_x=(t % n_cols) * dx,
                 center_y=(t // n_cols) * dy,
-                angle=base_tree.angle,
+                angle=angle,
             )
             for t in range(n_trees)
         )
