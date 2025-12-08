@@ -29,12 +29,22 @@ class BaseScorer:
     calculations in the shapely (v 2.1.2) library.
     """
 
+    def __init__(self, parallel: bool = True) -> None:
+        self.parallel = parallel
+
     def score(self) -> float:
         self.preprocess()
 
         n_tree_list = self.n_trees()
         total_score = Decimal("0")
 
+        if not self.parallel:
+            # Sequential – profiling-friendly
+            for n_tree in tqdm(n_tree_list, desc="Scoring (seq)"):
+                total_score += self._score_n_tree(n_tree)
+            return float(total_score)
+
+        # Parallel version
         with ProcessPoolExecutor() as executor:
             results = tqdm(
                 executor.map(
@@ -44,7 +54,6 @@ class BaseScorer:
                 total=len(n_tree_list),
                 desc="Scoring (parallel)",
             )
-
             for val in results:
                 total_score += val
 
@@ -85,7 +94,8 @@ class BaseScorer:
 
 
 class SolutionScorer(BaseScorer):
-    def __init__(self, solution: Solution):
+    def __init__(self, solution: Solution, parallel: bool = True):
+        super().__init__(parallel=parallel)
         self.solution = solution
 
     def n_trees(self) -> tuple[NTree, ...]:
@@ -93,7 +103,8 @@ class SolutionScorer(BaseScorer):
 
 
 class DataFrameScorer(BaseScorer):
-    def __init__(self, submission_df: pd.DataFrame):
+    def __init__(self, submission_df: pd.DataFrame, parallel: bool = True):
+        super().__init__(parallel=parallel)
         self.submission_df = submission_df
 
     def preprocess(self):

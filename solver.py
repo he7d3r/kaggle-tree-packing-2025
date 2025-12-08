@@ -11,9 +11,10 @@ from christmas_tree import ChristmasTree, NTree, to_scale
 from solution import Solution
 
 
-def get_default_solver() -> "Solver":
+def get_default_solver(parallel: bool = True) -> "Solver":
     return Solver(
-        name="Tighter grid with 5 by 5 degree rotations + ProcessPoolExecutor"
+        name="Tighter grid with 5 by 5 degree rotations + ProcessPoolExecutor",
+        parallel=parallel,
     )
 
 
@@ -26,11 +27,24 @@ class Solver:
     ANGLES: tuple[int, ...] = tuple(range(0, 90 + 5, 5))
     WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, parallel: bool = True):
         self.name = name
+        self.parallel = parallel
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
-        """Solves the tree placement problem the specified n-tree sizes."""
+        """Solves the tree placement problem for the specified n-tree sizes."""
+
+        if not self.parallel:
+            # Sequential – simple & profiler-friendly
+            n_trees = [
+                self._solve_single(tree_count)
+                for tree_count in tqdm(
+                    problem_sizes, desc="Placing trees (seq)"
+                )
+            ]
+            return Solution(n_trees=tuple(n_trees))
+
+        # Parallel version
         with ProcessPoolExecutor() as executor:
             n_trees = list(
                 tqdm(
@@ -39,9 +53,10 @@ class Solver:
                         ((self, tree_count) for tree_count in problem_sizes),
                     ),
                     total=len(problem_sizes),
-                    desc="Placing trees",
+                    desc="Placing trees (parallel)",
                 )
             )
+
         return Solution(n_trees=tuple(n_trees))
 
     def _solve_single(self, tree_count: int) -> NTree:

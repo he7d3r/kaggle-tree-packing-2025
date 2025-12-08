@@ -48,14 +48,27 @@ def parse_args() -> argparse.Namespace:
         "--max",
         type=int,
         default=DEFAULT_MAX_TREE_COUNT,
-        help=f"Maximum number of trees to solve (default: {DEFAULT_MAX_TREE_COUNT})",
+        help=(
+            "Maximum number of trees to solve "
+            f"(default: {DEFAULT_MAX_TREE_COUNT})"
+        ),
+    )
+
+    parser.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Disable multiprocessing (solver + score). Useful for profiling.",
     )
 
     try:
         return parser.parse_known_args()[0]
     except SystemExit:
         return argparse.Namespace(
-            mlflow=False, draft=False, plot_every=10, max=DEFAULT_MAX_TREE_COUNT
+            mlflow=False,
+            draft=False,
+            plot_every=10,
+            max=DEFAULT_MAX_TREE_COUNT,
+            no_parallel=False,
         )
 
 
@@ -100,7 +113,8 @@ def main() -> None:
     args = parse_args()
 
     plotter = Plotter()
-    solver = get_default_solver()
+    parallel = not args.no_parallel
+    solver = get_default_solver(parallel=parallel)
 
     run = start_mlflow(solver) if args.mlflow else None
 
@@ -118,7 +132,7 @@ def main() -> None:
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
-            score = SolutionScorer(solution).score()
+            score = SolutionScorer(solution, parallel=parallel).score()
         else:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
@@ -129,7 +143,7 @@ def main() -> None:
                 index_col="id",
             )
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
-            score = DataFrameScorer(submission_df).score()
+            score = DataFrameScorer(submission_df, parallel=parallel).score()
 
         if args.mlflow:
             import mlflow
