@@ -1377,6 +1377,18 @@ wheels = [
 ]
 
 [[package]]
+name = "markdown-it-py"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5b/f5/4ec618ed16cc4f8fb3b701563655a69816155e79e24a17b651541804721d/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3", size = 73070, upload-time = "2025-08-11T12:57:52.854Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/54/e7d793b573f298e1c9013b8c4dade17d481164aa517d1d7148619c2cedbf/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147", size = 87321, upload-time = "2025-08-11T12:57:51.923Z" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1487,6 +1499,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c7/74/97e72a36efd4ae2bccb3463284300f8953f199b5ffbc04cbbb0ec78f74b1/matplotlib_inline-0.2.1.tar.gz", hash = "sha256:e1ee949c340d771fc39e241ea75683deb94762c8fa5f2927ec57c83c4dffa9fe", size = 8110, upload-time = "2025-10-23T09:00:22.126Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/af/33/ee4519fa02ed11a94aef9559552f3b17bb863f2ecfe1a35dc7f548cde231/matplotlib_inline-0.2.1-py3-none-any.whl", hash = "sha256:d56ce5156ba6085e00a9d54fead6ed29a9c47e215cd1bba2e976ef39f5710a76", size = 9516, upload-time = "2025-10-23T09:00:20.675Z" },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
 ]
 
 [[package]]
@@ -1674,6 +1695,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/76/8c/2ba3902e1a0fc1c74962ea9bb33a534bb05984ad7ff9515bf8d07527cadd/numpy-1.26.4-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:1dda2e7b4ec9dd512f84935c5f126c8bd8b9f2fc001e9f54af255e8c5f16b0e0", size = 17786643, upload-time = "2024-02-05T23:57:56.585Z" },
     { url = "https://files.pythonhosted.org/packages/28/4a/46d9e65106879492374999e76eb85f87b15328e06bd1550668f79f7b18c6/numpy-1.26.4-cp312-cp312-win32.whl", hash = "sha256:50193e430acfc1346175fcbdaa28ffec49947a06918b7b92130744e81e640110", size = 5677803, upload-time = "2024-02-05T23:58:08.963Z" },
     { url = "https://files.pythonhosted.org/packages/16/2e/86f24451c2d530c88daf997cb8d6ac622c1d40d19f5a031ed68a4b73a374/numpy-1.26.4-cp312-cp312-win_amd64.whl", hash = "sha256:08beddf13648eb95f8d867350f6a018a4be2e5ad54c8d8caed89ebca558b2818", size = 15517754, upload-time = "2024-02-05T23:58:36.364Z" },
+]
+
+[[package]]
+name = "nvidia-ml-py"
+version = "13.580.82"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/6c/4a533f2c0185027c465adb6063086bc3728301e95f483665bfa9ebafb2d3/nvidia_ml_py-13.580.82.tar.gz", hash = "sha256:0c028805dc53a0e2a6985ea801888197765ac2ef8f1c9e29a7bf0d3616a5efc7", size = 47999, upload-time = "2025-09-11T16:44:56.267Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/96/d6d25a4c307d6645f4a9b91d620c0151c544ad38b5e371313a87d2761004/nvidia_ml_py-13.580.82-py3-none-any.whl", hash = "sha256:4361db337b0c551e2d101936dae2e9a60f957af26818e8c0c3a1f32b8db8d0a7", size = 49008, upload-time = "2025-09-11T16:44:54.915Z" },
 ]
 
 [[package]]
@@ -2451,6 +2481,19 @@ wheels = [
 ]
 
 [[package]]
+name = "rich"
+version = "14.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fb/d2/8920e102050a0de7bfabeb4c4614a49248cf8d5d7a8d01885fbb24dc767a/rich-14.2.0.tar.gz", hash = "sha256:73ff50c7c0c1c77c8243079283f4edb376f0f6442433aecb8ce7e6d0b92d1fe4", size = 219990, upload-time = "2025-10-09T14:16:53.064Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/7a/b0178788f8dc6cafce37a212c99565fa1fe7872c70c6c9c1e1a372d9d88f/rich-14.2.0-py3-none-any.whl", hash = "sha256:76bc51fe2e57d2b1be1f96c524b890b816e334ab4c1e45888799bfaab0021edd", size = 243393, upload-time = "2025-10-09T14:16:51.245Z" },
+]
+
+[[package]]
 name = "rpds-py"
 version = "0.29.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2594,6 +2637,34 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/67/0b/8e4e0639e4cc12547f41cb771b0b44ec8225b6b6a93393176d75fe6f7d40/ruff-0.14.6-py3-none-win32.whl", hash = "sha256:00169c0c8b85396516fdd9ce3446c7ca20c2a8f90a77aa945ba6b8f2bfe99e85", size = 13013361, upload-time = "2025-11-21T14:26:08.152Z" },
     { url = "https://files.pythonhosted.org/packages/fb/02/82240553b77fd1341f80ebb3eaae43ba011c7a91b4224a9f317d8e6591af/ruff-0.14.6-py3-none-win_amd64.whl", hash = "sha256:390e6480c5e3659f8a4c8d6a0373027820419ac14fa0d2713bd8e6c3e125b8b9", size = 14432087, upload-time = "2025-11-21T14:26:10.891Z" },
     { url = "https://files.pythonhosted.org/packages/a5/1f/93f9b0fad9470e4c829a5bb678da4012f0c710d09331b860ee555216f4ea/ruff-0.14.6-py3-none-win_arm64.whl", hash = "sha256:d43c81fbeae52cfa8728d8766bbf46ee4298c888072105815b392da70ca836b2", size = 13520930, upload-time = "2025-11-21T14:26:13.951Z" },
+]
+
+[[package]]
+name = "scalene"
+version = "1.5.55"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cloudpickle" },
+    { name = "jinja2" },
+    { name = "numpy" },
+    { name = "nvidia-ml-py", marker = "sys_platform != 'darwin'" },
+    { name = "psutil" },
+    { name = "pydantic" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/75/65/e57f87fd92aa8c14f5404dc04542054afbc41c1ba8e9e86f4414a58983e9/scalene-1.5.55.tar.gz", hash = "sha256:71c0c89287f46f9f1fa965def5866156313a949ed592b8acb008f8cafcf7c518", size = 9331156, upload-time = "2025-09-23T12:52:27.493Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/fd/a88a2355a6290dffd32f7771ceb425aa42fa2b181f28a00df5a25797ce6a/scalene-1.5.55-cp311-cp311-macosx_13_0_universal2.whl", hash = "sha256:58c0ed50c159df32887fe91abde01e1e152d270814ffa892edbd79f132d3ffb3", size = 1136476, upload-time = "2025-09-23T12:52:23.74Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/65/032be96f3d5dd548dfe60aed6403d367a35a76d712b6fd919527e51363e9/scalene-1.5.55-cp311-cp311-macosx_15_0_universal2.whl", hash = "sha256:be4f5c58c8e31a8f7262c7c2bf39855b8573570ccb99e235055141a00f72fec6", size = 1134545, upload-time = "2025-09-23T12:52:26.213Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/94/dfc47c4a3ffeaea541885296699961832cbf79328e432a565148218917cb/scalene-1.5.55-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:9651c24636edf72e07d57ee24cc636b19ce4dbf3c0ca9d1d527fc69d20e1ae5c", size = 1411207, upload-time = "2025-09-23T12:46:06.176Z" },
+    { url = "https://files.pythonhosted.org/packages/d9/9a/616850c58f987aa889685431cfdce5bcfd0e7444fa20acdc750809a015c5/scalene-1.5.55-cp312-cp312-macosx_13_0_universal2.whl", hash = "sha256:1750f70215762dec3b7998fecbaf9b59704d18711f24258adf15d54cecf42e33", size = 1136310, upload-time = "2025-09-23T12:52:41.54Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/e4/ba77dd1a9b3415287d9ee73909a4527799eaf44908fc8abe9ddb94ac8887/scalene-1.5.55-cp312-cp312-macosx_15_0_universal2.whl", hash = "sha256:8bb094a887062bb12e91a81cc8b69c73a5f35a42da3cc6a67e92f8a3eea72af7", size = 1134356, upload-time = "2025-09-23T12:50:44.984Z" },
+    { url = "https://files.pythonhosted.org/packages/37/b5/8b67429f201b74c576794a4fbfc7fa401d2f4570ba3aa98d9922e3a6f5a8/scalene-1.5.55-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c31ddee2590bcb55c53d9562b6aa8989c8c975b49777a0b4beb5d68ac7804d8c", size = 1411709, upload-time = "2025-09-23T12:46:12.773Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/21/fe23516085fb57686bf3ce5573f83b28e12a7c994b96ea28b214b022aff9/scalene-1.5.55-cp312-cp312-win_amd64.whl", hash = "sha256:c86c06a88a1714f5a77c609e69153702a30e679a015045ba53e504aea19ede4b", size = 1025322, upload-time = "2025-09-23T12:46:12.914Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/b9/9c0279f95e254eff8880d65687007f8ff3ec955fb0e0a3c3d93694a1ef7b/scalene-1.5.55-cp313-cp313-macosx_13_0_universal2.whl", hash = "sha256:34fd559e5043d91b17e450bd3373dec0279881959314be4db47bedaa9da065a9", size = 1136330, upload-time = "2025-09-23T12:48:09.541Z" },
+    { url = "https://files.pythonhosted.org/packages/31/84/a21828d85f94bbb053268c4513bef0f7e5c168ecb1e21315bc66f598c87f/scalene-1.5.55-cp313-cp313-macosx_15_0_universal2.whl", hash = "sha256:c625fd30a3b73b98ae1acd2cb2268b0f654987021192277c62c0e6e0883cd0ae", size = 1134342, upload-time = "2025-09-23T12:52:12.392Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/b4/33636da3cd6ed2a2bea19907c4c64a630931eb0fb6697a27735234ab4282/scalene-1.5.55-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d4f42a8daaf7a17beca104d44dafc704617f35af385305baa27ed489bb2f2dc1", size = 1411645, upload-time = "2025-09-23T12:46:07.209Z" },
+    { url = "https://files.pythonhosted.org/packages/d0/5d/c620fd816a05b979cb5b61c8c18128e2136214a0e50b755231dfd4f4f0b4/scalene-1.5.55-cp313-cp313-win_amd64.whl", hash = "sha256:57daf3072f88e7fdda3bc94d0e75f30733268f033fed76f1b909c59315926634", size = 1025323, upload-time = "2025-09-23T12:46:21.673Z" },
 ]
 
 [[package]]
@@ -2802,6 +2873,18 @@ wheels = [
 ]
 
 [[package]]
+name = "snakeviz"
+version = "2.2.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tornado" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/06/82f56563b16d33c2586ac2615a3034a83a4ff1969b84c8d79339e5d07d73/snakeviz-2.2.2.tar.gz", hash = "sha256:08028c6f8e34a032ff14757a38424770abb8662fb2818985aeea0d9bc13a7d83", size = 182039, upload-time = "2024-11-09T22:03:58.99Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/f7/83b00cdf4f114f10750a18b64c27dc34636d0ac990ccac98282f5c0fbb43/snakeviz-2.2.2-py3-none-any.whl", hash = "sha256:77e7b9c82f6152edc330040319b97612351cd9b48c706434c535c2df31d10ac5", size = 183477, upload-time = "2024-11-09T22:03:57.049Z" },
+]
+
+[[package]]
 name = "sniffio"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2984,6 +3067,8 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "ruff" },
+    { name = "scalene" },
+    { name = "snakeviz" },
 ]
 
 [package.metadata]
@@ -2998,7 +3083,11 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = ">=0.14.6" }]
+dev = [
+    { name = "ruff", specifier = ">=0.14.6" },
+    { name = "scalene", specifier = ">=1.5.55" },
+    { name = "snakeviz", specifier = ">=2.2.2" },
+]
 
 [[package]]
 name = "typing-extensions"
