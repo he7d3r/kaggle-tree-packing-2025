@@ -1,3 +1,9 @@
+import os
+
+# Force matplotlib to use a non-GUI backend BEFORE any imports
+os.environ["MPLBACKEND"] = "Agg"  # Non-interactive backend
+os.environ["MATPLOTLIB_BACKEND"] = "Agg"
+
 import argparse
 import logging
 import sys
