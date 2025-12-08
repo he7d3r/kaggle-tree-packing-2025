@@ -24,7 +24,7 @@ def _solve_single_helper(args):
 
 
 class Solver:
-    ANGLES: tuple[int, ...] = tuple(range(0, 90 + 5, 5))
+    ANGLES: tuple[Decimal, ...] = tuple(Decimal(a) for a in range(0, 95, 5))
     WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
 
     def __init__(self, name: str, parallel: bool = True):
@@ -63,7 +63,7 @@ class Solver:
         best: NTree = NTree()
         best_length = math.inf
         for angle in self.ANGLES:
-            tree = ChristmasTree(angle=Decimal(angle))
+            tree = ChristmasTree(angle=angle)
             dx, dy = self._compute_dx_dy(tree)
             side = self._ideal_square_side(tree, tree_count)
             base_n_cols = self._estimate_n_cols(side, dx)
@@ -78,11 +78,12 @@ class Solver:
                     best_length = side_length
         return best
 
-    def _compute_dx_dy(self, tree):
+    def _compute_dx_dy(self, tree: ChristmasTree) -> tuple[Decimal, Decimal]:
         """
-        Compute minimal horizontal and vertical offsets such that a translated
-        copy of the polygon into either direction by the corresponding offset
-        does not overlap (touching is allowed).
+        Compute minimal horizontal and vertical grid offsets for a given tree.
+
+        Returns dx, dy such that trees placed at grid positions (i*dx, j*dy)
+        do not overlap (touching is allowed). Results are cached.
         """
         width, height = tree.sides
         dx_step_in = width / 32
@@ -90,6 +91,8 @@ class Solver:
         dx = width
         dy = height
         polygon = tree.polygon
+
+        # Find minimal horizontal offset (dx)
         while dx > 0:
             moved_x = affinity.translate(
                 polygon, xoff=float(to_scale(dx)), yoff=0.0
@@ -98,19 +101,22 @@ class Solver:
                 break
             dx -= dx_step_in
         dx += dx_step_in
+
+        # Find minimal vertical offset (dy), checking diagonal collisions
         while dy > 0:
             moved_y = affinity.translate(
                 polygon, xoff=0.0, yoff=float(to_scale(dy))
             )
             if self._relevant_collision(moved_y, polygon):
                 break
-            # The trees at (1, 0) and (0, 1) might collide
+            # Check if horizontally adjacent trees collide with
+            # vertically adjacent trees
             moved_x = affinity.translate(
                 polygon, xoff=float(to_scale(dx)), yoff=0.0
             )
             if self._relevant_collision(moved_x, moved_y):
                 break
-            # The trees at (1, 1) and (0, 0) might collide
+            # Check if diagonally adjacent trees collide with origin tree
             moved_xy = affinity.translate(
                 polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(dy))
             )
@@ -118,6 +124,7 @@ class Solver:
                 break
             dy -= dy_step_in
         dy += dy_step_in
+
         return dx, dy
 
     def _relevant_collision(self, a: Polygon, b: Polygon) -> bool:
