@@ -1,8 +1,9 @@
 import math
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 from decimal import Decimal
 from functools import partial
-from typing import Callable, Sequence
+from typing import Callable, ClassVar, Sequence, Tuple
 
 from shapely import affinity
 from shapely.geometry import Polygon
@@ -10,6 +11,95 @@ from tqdm import tqdm
 
 from christmas_tree import ChristmasTree, NTree, to_scale
 from solution import Solution
+
+BISECTION_TOLERANCE = Decimal("0.0001")
+
+
+def _relevant_collision(a: Polygon, b: Polygon) -> bool:
+    """Check for intersection without touching."""
+    return a.intersects(b) and not a.touches(b)
+
+
+def _valid_h_offset(polygon: Polygon, offset: Decimal) -> bool:
+    """Test if horizontal offset causes collision."""
+    moved_x = affinity.translate(polygon, xoff=float(to_scale(offset)))
+    return _relevant_collision(moved_x, polygon)
+
+
+def _valid_v_offset(polygon: Polygon, dx: Decimal, offset: Decimal) -> bool:
+    """Test vertical offset collision considering horizontal neighbors."""
+    moved_y = affinity.translate(polygon, yoff=float(to_scale(offset)))
+    if _relevant_collision(moved_y, polygon):
+        return True
+
+    moved_x = affinity.translate(polygon, xoff=float(to_scale(dx)))
+    if _relevant_collision(moved_x, moved_y):
+        return True
+
+    moved_xy = affinity.translate(
+        polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(offset))
+    )
+    if _relevant_collision(moved_xy, polygon):
+        return True
+
+    return False
+
+
+def _bisect_offset(
+    lower_bound: Decimal,
+    upper_bound: Decimal,
+    collision_fn: Callable[[Decimal], bool],
+    tolerance: Decimal,
+) -> Decimal:
+    """Bisection search for minimal offset without collisions."""
+    low = lower_bound
+    high = upper_bound
+
+    while high - low > tolerance:
+        mid = (low + high) / 2
+        if collision_fn(mid):
+            low = mid  # desired offset is in (mid, high]
+        else:
+            high = mid  # desired offset is in (low, mid]
+
+    return high
+
+
+@dataclass(frozen=True)
+class RotatedTreeGridParams:
+    """Hashable/frozen class to store pre-computed grid parameters."""
+
+    angle: Decimal
+    dx: Decimal
+    dy: Decimal
+
+    @classmethod
+    def from_angle(cls, angle: Decimal) -> "RotatedTreeGridParams":
+        """
+        Computes dx and dy for a given angle and returns a new instance.
+        This method replaces the functionality of Solver._compute_dx_dy.
+        """
+        tree = ChristmasTree(angle=angle)
+        width, height = tree.sides
+        polygon = tree.polygon
+
+        # Find minimal horizontal offset (dx)
+        dx = _bisect_offset(
+            lower_bound=Decimal("0.0"),
+            upper_bound=width,
+            collision_fn=partial(_valid_h_offset, polygon),
+            tolerance=BISECTION_TOLERANCE,
+        )
+
+        # Find minimal vertical offset (dy)
+        dy = _bisect_offset(
+            lower_bound=Decimal("0.0"),
+            upper_bound=height,
+            collision_fn=partial(_valid_v_offset, polygon, dx),
+            tolerance=BISECTION_TOLERANCE,
+        )
+
+        return cls(angle=angle, dx=dx, dy=dy)
 
 
 def get_default_solver(parallel: bool = True) -> "Solver":
@@ -20,18 +110,33 @@ def get_default_solver(parallel: bool = True) -> "Solver":
 
 
 def _solve_single_helper(args):
+    """Helper for parallel execution to unpack arguments."""
     solver, tree_count = args
     return solver._solve_single(tree_count)
 
 
 class Solver:
-    ANGLES: tuple[Decimal, ...] = tuple(Decimal(a) for a in range(0, 91, 1))
-    WIDTH_INCREMENTS: tuple[int, ...] = (-1, 0)
-    BISECTION_TOLERANCE: Decimal = Decimal("0.0001")
+    ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
+        Decimal(a) for a in range(0, 91, 1)
+    )
+    WIDTH_INCREMENTS: ClassVar[Tuple[int, ...]] = (-1, 0)
+
+    # Store the pre-computed parameters
+    _GRID_PARAMS: Tuple[RotatedTreeGridParams, ...]
 
     def __init__(self, name: str, parallel: bool = True):
         self.name = name
         self.parallel = parallel
+        self._GRID_PARAMS = self._precompute_grid_params()
+
+    def _precompute_grid_params(self) -> Tuple[RotatedTreeGridParams, ...]:
+        """
+        Computes RotatedTreeGridParams for all angles by calling the
+        classmethod constructor on RotatedTreeGridParams.
+        """
+        return tuple(
+            RotatedTreeGridParams.from_angle(angle) for angle in self.ANGLES
+        )
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem for the specified n-tree sizes."""
@@ -62,11 +167,16 @@ class Solver:
         return Solution(n_trees=tuple(n_trees))
 
     def _solve_single(self, tree_count: int) -> NTree:
+        """
+        Solves the placement for a single tree count, iterating over
+        the pre-computed grid parameters.
+        """
         best: NTree = NTree()
         best_length = math.inf
-        for angle in self.ANGLES:
+
+        for params in self._GRID_PARAMS:
+            angle, dx, dy = params.angle, params.dx, params.dy
             tree = ChristmasTree(angle=angle)
-            dx, dy = self._compute_dx_dy(tree)
             side = self._ideal_square_side(tree, tree_count)
             base_n_cols = self._estimate_n_cols(side, dx)
             for increment in self.WIDTH_INCREMENTS:
@@ -80,102 +190,7 @@ class Solver:
                     best_length = side_length
         return best
 
-    def _compute_dx_dy(self, tree: ChristmasTree) -> tuple[Decimal, Decimal]:
-        """
-        Compute minimal horizontal and vertical grid offsets for a given tree.
-
-        Returns dx, dy such that trees placed at grid positions (i*dx, j*dy)
-        do not overlap (touching is allowed). Results are cached.
-
-        Uses bisection method for faster convergence.
-        """
-        width, height = tree.sides
-        polygon = tree.polygon
-
-        # Find minimal horizontal offset (dx) using bisection
-        dx = self._bisect_offset(
-            lower_bound=Decimal("0.0"),
-            upper_bound=width,
-            collision_fn=partial(self._valid_h_offset, polygon),
-            tolerance=self.BISECTION_TOLERANCE,
-        )
-
-        # Find minimal vertical offset (dy) using bisection
-        # For vertical offset, we need to consider collisions with dx
-        dy = self._bisect_offset(
-            lower_bound=Decimal("0.0"),
-            upper_bound=height,
-            collision_fn=partial(self._valid_v_offset, polygon, dx),
-            tolerance=self.BISECTION_TOLERANCE,
-        )
-
-        return dx, dy
-
-    def _bisect_offset(
-        self,
-        lower_bound: Decimal,
-        upper_bound: Decimal,
-        collision_fn: Callable[[Decimal], bool],
-        tolerance: Decimal,
-    ) -> Decimal:
-        """
-        Bisection search for minimal offset without collisions.
-
-        collision_fn returns True if offset causes collisions (too small).
-        Find smallest offset where collision_fn returns False.
-        """
-        low = lower_bound
-        high = upper_bound
-
-        while high - low > tolerance:
-            mid = (low + high) / 2
-            if collision_fn(mid):
-                low = mid  # desired offset is in (mid, high]
-            else:
-                high = mid  # desired offset is in (low, mid]
-
-        # Return the smallest offset that doesn't cause collision
-        return high
-
-    def _valid_h_offset(self, polygon: Polygon, offset: Decimal) -> bool:
-        """
-        Test if horizontal offset causes collision.
-        Returns True if collision occurs (offset is too small).
-        """
-        moved_x = affinity.translate(polygon, xoff=float(to_scale(offset)))
-        return self._relevant_collision(moved_x, polygon)
-
-    def _valid_v_offset(
-        self, polygon: Polygon, dx: Decimal, offset: Decimal
-    ) -> bool:
-        """
-        Test vertical offset collision considering horizontal neighbors.
-        Returns True if collision occurs (offset is too small).
-        """
-        moved_y = affinity.translate(polygon, yoff=float(to_scale(offset)))
-        if self._relevant_collision(moved_y, polygon):
-            return True
-
-        # Check if horizontally adjacent trees collide with
-        # vertically adjacent trees
-        moved_x = affinity.translate(polygon, xoff=float(to_scale(dx)))
-        if self._relevant_collision(moved_x, moved_y):
-            return True
-
-        # Check if diagonally adjacent trees collide with origin tree
-        moved_xy = affinity.translate(
-            polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(offset))
-        )
-        if self._relevant_collision(moved_xy, polygon):
-            return True
-
-        return False
-
-    def _relevant_collision(self, a: Polygon, b: Polygon) -> bool:
-        return a.intersects(b) and not a.touches(b)
-
     def _estimate_n_cols(self, side: Decimal, dx: Decimal) -> int:
-        # Near-square estimate
         return math.ceil(side / dx)
 
     def _ideal_square_side(self, tree: ChristmasTree, n: int) -> Decimal:
