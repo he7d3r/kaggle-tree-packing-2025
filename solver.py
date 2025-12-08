@@ -94,38 +94,55 @@ class Solver:
 
         # Find minimal horizontal offset (dx)
         while dx > 0:
-            moved_x = affinity.translate(
-                polygon, xoff=float(to_scale(dx)), yoff=0.0
-            )
-            if self._relevant_collision(moved_x, polygon):
+            if self._horizontal_offset_causes_collision(polygon, dx):
                 break
             dx -= dx_step_in
         dx += dx_step_in
 
         # Find minimal vertical offset (dy), checking diagonal collisions
         while dy > 0:
-            moved_y = affinity.translate(
-                polygon, xoff=0.0, yoff=float(to_scale(dy))
-            )
-            if self._relevant_collision(moved_y, polygon):
-                break
-            # Check if horizontally adjacent trees collide with
-            # vertically adjacent trees
-            moved_x = affinity.translate(
-                polygon, xoff=float(to_scale(dx)), yoff=0.0
-            )
-            if self._relevant_collision(moved_x, moved_y):
-                break
-            # Check if diagonally adjacent trees collide with origin tree
-            moved_xy = affinity.translate(
-                polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(dy))
-            )
-            if self._relevant_collision(moved_xy, polygon):
+            if self._vertical_offset_causes_collision(polygon, dx, dy):
                 break
             dy -= dy_step_in
         dy += dy_step_in
 
         return dx, dy
+
+    def _horizontal_offset_causes_collision(
+        self, polygon: Polygon, offset: Decimal
+    ) -> bool:
+        """
+        Test if horizontal offset causes collision.
+        Returns True if collision occurs (offset is too small).
+        """
+        moved_x = affinity.translate(polygon, xoff=float(to_scale(offset)))
+        return self._relevant_collision(moved_x, polygon)
+
+    def _vertical_offset_causes_collision(
+        self, polygon: Polygon, dx: Decimal, offset: Decimal
+    ) -> bool:
+        """
+        Test vertical offset collision considering horizontal neighbors.
+        Returns True if collision occurs (offset is too small).
+        """
+        moved_y = affinity.translate(polygon, yoff=float(to_scale(offset)))
+        if self._relevant_collision(moved_y, polygon):
+            return True
+
+        # Check if horizontally adjacent trees collide with
+        # vertically adjacent trees
+        moved_x = affinity.translate(polygon, xoff=float(to_scale(dx)))
+        if self._relevant_collision(moved_x, moved_y):
+            return True
+
+        # Check if diagonally adjacent trees collide with origin tree
+        moved_xy = affinity.translate(
+            polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(offset))
+        )
+        if self._relevant_collision(moved_xy, polygon):
+            return True
+
+        return False
 
     def _relevant_collision(self, a: Polygon, b: Polygon) -> bool:
         return a.intersects(b) and not a.touches(b)
