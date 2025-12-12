@@ -1,7 +1,7 @@
 import math
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from functools import partial
 from typing import Callable, ClassVar, Sequence, Tuple
 
@@ -70,6 +70,8 @@ class RotatedTreeGridParams:
     """Hashable/frozen class to store pre-computed grid and area parameters."""
 
     angle: Decimal
+    width: Decimal
+    height: Decimal
     dx: Decimal
     dy: Decimal
     bounding_rectangle_area: Decimal
@@ -102,6 +104,8 @@ class RotatedTreeGridParams:
 
         return cls(
             angle=angle,
+            width=width,
+            height=height,
             dx=dx,
             dy=dy,
             bounding_rectangle_area=bounding_rectangle_area,
@@ -179,8 +183,10 @@ class Solver:
         best_length = math.inf
 
         for params in self._GRID_PARAMS:
-            angle, dx, dy, bounding_rectangle_area = (
+            angle, width, height, dx, dy, bounding_rectangle_area = (
                 params.angle,
+                params.width,
+                params.height,
                 params.dx,
                 params.dy,
                 params.bounding_rectangle_area,
@@ -189,7 +195,7 @@ class Solver:
             base_n_cols = self._estimate_n_cols(side, dx)
             for increment in self.WIDTH_INCREMENTS:
                 n_cols = base_n_cols + increment
-                if n_cols < 1:
+                if n_cols < 1 or tree_count < n_cols:
                     continue
                 n_tree = self._grid_n_tree(
                     angle=angle,
@@ -198,7 +204,9 @@ class Solver:
                     dx=dx,
                     dy=dy,
                 )
-                side_length = n_tree.side_length
+                side_length = compute_side_length(
+                    tree_count, n_cols, dx, width, dy, height
+                )
                 if side_length < best_length:
                     best = n_tree
                     best_length = side_length
@@ -233,3 +241,19 @@ class Solver:
             for t in range(n_trees)
         )
         return NTree(trees=trees)
+
+
+def compute_side_length(
+    tree_count: int,
+    n_cols: int,
+    dx: Decimal,
+    width: Decimal,
+    dy: Decimal,
+    height: Decimal,
+) -> Decimal:
+    n_rows = (Decimal(tree_count) / Decimal(n_cols)).to_integral_exact(
+        rounding=ROUND_CEILING
+    )
+    width = dx * Decimal(n_cols - 1) + width
+    height = dy * Decimal(n_rows - 1) + height
+    return max(width, height)
