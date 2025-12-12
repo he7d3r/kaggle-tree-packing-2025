@@ -3,6 +3,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
 from functools import partial
+from itertools import product
 from typing import Callable, ClassVar, Sequence, Tuple
 
 from shapely import affinity
@@ -12,7 +13,7 @@ from tqdm import tqdm
 from christmas_tree import ChristmasTree, NTree, to_scale
 from solution import Solution
 
-BISECTION_TOLERANCE = Decimal("0.0001")
+BISECTION_TOLERANCE = Decimal("0.000025")
 
 
 def _relevant_collision(a: Polygon, b: Polygon) -> bool:
@@ -114,7 +115,7 @@ class RotatedTreeGridParams:
 
 def get_default_solver(parallel: bool = True) -> "Solver":
     return Solver(
-        name="Bisection-search grid packing: 0-90° rotations at 1° resolution",
+        name="Optimized Bisection-search grid packing: 0-90° rotations at 1° resolution",
         parallel=parallel,
     )
 
@@ -179,38 +180,38 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed grid parameters.
         """
-        best: NTree = NTree()
         best_length = math.inf
+        best_n_tree_args = {}
 
-        for params in self._GRID_PARAMS:
-            angle, width, height, dx, dy, bounding_rectangle_area = (
-                params.angle,
-                params.width,
-                params.height,
-                params.dx,
-                params.dy,
-                params.bounding_rectangle_area,
+        all_params = {
+            "grid_params": self._GRID_PARAMS,
+            "width_increments": self.WIDTH_INCREMENTS,
+        }
+        for param_combination in product(*all_params.values()):
+            params, increment = param_combination
+            side = self._ideal_square_side(
+                params.bounding_rectangle_area, tree_count
             )
-            side = self._ideal_square_side(bounding_rectangle_area, tree_count)
-            base_n_cols = self._estimate_n_cols(side, dx)
-            for increment in self.WIDTH_INCREMENTS:
-                n_cols = base_n_cols + increment
-                if n_cols < 1 or tree_count < n_cols:
-                    continue
-                n_tree = self._grid_n_tree(
-                    angle=angle,
-                    n_trees=tree_count,
-                    n_cols=n_cols,
-                    dx=dx,
-                    dy=dy,
-                )
-                side_length = compute_side_length(
-                    tree_count, n_cols, dx, width, dy, height
-                )
-                if side_length < best_length:
-                    best = n_tree
-                    best_length = side_length
-        return best
+            base_n_cols = self._estimate_n_cols(side, params.dx)
+            n_cols = base_n_cols + increment
+            if n_cols < 1 or tree_count < n_cols:
+                continue
+            side_length = compute_side_length(
+                tree_count,
+                n_cols,
+                params.dx,
+                params.width,
+                params.dy,
+                params.height,
+            )
+            if side_length < best_length:
+                best_length = side_length
+                best_n_tree_args["angle"] = params.angle
+                best_n_tree_args["n_trees"] = tree_count
+                best_n_tree_args["n_cols"] = n_cols
+                best_n_tree_args["dx"] = params.dx
+                best_n_tree_args["dy"] = params.dy
+        return self._grid_n_tree(**best_n_tree_args)
 
     def _estimate_n_cols(self, side: Decimal, dx: Decimal) -> int:
         # Near-square estimate
