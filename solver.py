@@ -13,7 +13,7 @@ from tqdm import tqdm
 from christmas_tree import ChristmasTree, NTree, to_scale
 from solution import Solution
 
-BISECTION_TOLERANCE = Decimal("0.00008")
+BISECTION_TOLERANCE = Decimal("0.000001")
 
 
 def _relevant_collision(a: Polygon, b: Polygon) -> bool:
@@ -93,7 +93,7 @@ class RotatedTreeGridParams:
             upper_bound=width,
             collision_fn=partial(_valid_h_offset, polygon),
             tolerance=BISECTION_TOLERANCE,
-        )
+        ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
         # Find minimal vertical offset (dy)
         dy = _bisect_offset(
@@ -101,7 +101,7 @@ class RotatedTreeGridParams:
             upper_bound=height,
             collision_fn=partial(_valid_v_offset, polygon, dx),
             tolerance=BISECTION_TOLERANCE,
-        )
+        ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
         return cls(
             angle=angle,
