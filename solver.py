@@ -149,16 +149,16 @@ class Solver:
         """Solves the tree placement problem for the specified n-tree sizes."""
 
         if not self.parallel:
-            n_trees = [
+            n_trees = tuple(
                 self._solve_single(tree_count)
                 for tree_count in tqdm(
                     problem_sizes, desc="Placing trees (seq)"
                 )
-            ]
-            return Solution(n_trees=tuple(n_trees))
+            )
+            return Solution(n_trees=n_trees)
 
         with ProcessPoolExecutor() as executor:
-            n_trees = list(
+            n_trees = tuple(
                 tqdm(
                     executor.map(
                         _solve_single_helper,
@@ -169,7 +169,7 @@ class Solver:
                 )
             )
 
-        return Solution(n_trees=tuple(n_trees))
+        return Solution(n_trees=n_trees)
 
     def _solve_single(self, tree_count: int) -> NTree:
         """
