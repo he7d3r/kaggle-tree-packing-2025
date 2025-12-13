@@ -199,10 +199,9 @@ class Solver:
                 if prev_row == max_row and prev_col == max_col:
                     # The previous tree was at the corner of a rectangle.
                     # Start a new row or new column (whichever is best)
-                    next_col_end, next_row_end = to_coordinates(
-                        max_col + 2, max_row + 2
-                    )
-                    if next_col_end <= next_row_end:
+                    x_col, y_col = to_coordinates(max_col + 2, max_row + 1)
+                    x_row, y_row = to_coordinates(max_col + 1, max_row + 2)
+                    if max(x_col, y_col) <= max(x_row, y_row):
                         row = 0
                         col = max_col + 1
                         max_col += 1
