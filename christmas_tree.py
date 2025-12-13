@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal, getcontext
 from functools import cached_property
 from typing import cast
@@ -80,16 +80,16 @@ class ChristmasTree:
     center_x: Decimal = Decimal("0")
     center_y: Decimal = Decimal("0")
     angle: Decimal = Decimal("0")
-    polygon: Polygon = field(init=False, compare=False, hash=False)
 
-    def __post_init__(self):
+    @cached_property
+    def polygon(self) -> Polygon:
         rotated = affinity.rotate(BASE_TREE, float(self.angle), origin=(0, 0))
         translated = affinity.translate(
             rotated,
             xoff=float(to_scale(self.center_x)),
             yoff=float(to_scale(self.center_y)),
         )
-        object.__setattr__(self, "polygon", translated)
+        return translated
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
