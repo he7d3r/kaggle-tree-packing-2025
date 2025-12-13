@@ -104,6 +104,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable multiprocessing (solver + score). Useful for profiling.",
     )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Run score analysis and create plots from submission file",
+    )
 
     try:
         return parser.parse_known_args()[0]
@@ -115,6 +120,7 @@ def parse_args() -> argparse.Namespace:
             plot_every=10,
             max=DEFAULT_MAX_TREE_COUNT,
             no_parallel=False,
+            analyze=False,
         )
 
 
@@ -159,6 +165,26 @@ def display_notebook_images():
 def main() -> None:
     args = parse_args()
 
+    # If analyze flag is set, run analysis and exit
+    if args.analyze:
+        logger.info("Starting score analysis of submission file...")
+        plotter = Plotter(parallel=not args.no_parallel)
+        plotter.plot_scores_analysis(OUTPUT_FILE)
+
+        # Display analysis plot in notebook if applicable
+        if in_notebook():
+            try:
+                from IPython.display import Image, display
+
+                analysis_path = "images/score_analysis.png"
+                if os.path.exists(analysis_path):
+                    display(Image(filename=analysis_path, width=800))
+            except Exception as e:
+                logger.warning(f"Could not display analysis plot: {e}")
+
+        return
+
+    # Original main logic
     parallel = not args.no_parallel
     plotter = Plotter(parallel=parallel)
     solver = get_default_solver(parallel=parallel)
