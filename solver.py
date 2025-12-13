@@ -180,51 +180,7 @@ class Solver:
 
         best_angle = Decimal("NaN")
         for params in self._GRID_PARAMS:
-            dx = params.dx
-            dy = params.dy
-            width = params.width
-            height = params.height
-
-            def to_coordinates(col: int, row: int) -> tuple[Decimal, Decimal]:
-                x = Decimal(0) if col == 0 else width + Decimal(col - 1) * dx
-                y = Decimal(0) if row == 0 else height + Decimal(row - 1) * dy
-                return x, y
-
-            positions = [to_coordinates(0, 0)]
-            prev_row = 0
-            prev_col = 0
-            max_row = 0
-            max_col = 0
-            while len(positions) < tree_count:
-                if prev_row == max_row and prev_col == max_col:
-                    # The previous tree was at the corner of a rectangle.
-                    # Start a new row or new column (whichever is best)
-                    x_col, y_col = to_coordinates(max_col + 2, max_row + 1)
-                    x_row, y_row = to_coordinates(max_col + 1, max_row + 2)
-                    if max(x_col, y_col) <= max(x_row, y_row):
-                        row = 0
-                        col = max_col + 1
-                        max_col += 1
-                    else:
-                        row = max_row + 1
-                        col = 0
-                        max_row += 1
-                elif prev_row == max_row:
-                    # Continue adding to the previous row until it is full.
-                    # This does not change max_row and max_col
-                    row = max_row
-                    col = prev_col + 1
-                elif prev_col == max_col:
-                    # Continue adding to the previous column until it is full.
-                    # This does not change max_row and max_col
-                    row = prev_row + 1
-                    col = max_col
-                else:
-                    raise Exception("This should not happen.")
-                positions.append(to_coordinates(col, row))
-                prev_row = row
-                prev_col = col
-            length = max(to_coordinates(max_col + 1, max_row + 1))
+            positions, length = self._solve_single_params(tree_count, params)
             if length < best_length:
                 best_length = length
                 best_positions = positions
@@ -233,3 +189,51 @@ class Solver:
             ChristmasTree(*pos, angle=best_angle) for pos in best_positions
         )
         return NTree(trees=trees)
+
+    def _solve_single_params(self, tree_count, params):
+        dx = params.dx
+        dy = params.dy
+        width = params.width
+        height = params.height
+
+        def to_coordinates(col: int, row: int) -> tuple[Decimal, Decimal]:
+            x = Decimal(0) if col == 0 else width + Decimal(col - 1) * dx
+            y = Decimal(0) if row == 0 else height + Decimal(row - 1) * dy
+            return x, y
+
+        positions = [to_coordinates(0, 0)]
+        prev_row = 0
+        prev_col = 0
+        max_row = 0
+        max_col = 0
+        while len(positions) < tree_count:
+            if prev_row == max_row and prev_col == max_col:
+                # The previous tree was at the corner of a rectangle.
+                # Start a new row or new column (whichever is best)
+                x_col, y_col = to_coordinates(max_col + 2, max_row + 1)
+                x_row, y_row = to_coordinates(max_col + 1, max_row + 2)
+                if max(x_col, y_col) <= max(x_row, y_row):
+                    row = 0
+                    col = max_col + 1
+                    max_col += 1
+                else:
+                    row = max_row + 1
+                    col = 0
+                    max_row += 1
+            elif prev_row == max_row:
+                # Continue adding to the previous row until it is full.
+                # This does not change max_row and max_col
+                row = max_row
+                col = prev_col + 1
+            elif prev_col == max_col:
+                # Continue adding to the previous column until it is full.
+                # This does not change max_row and max_col
+                row = prev_row + 1
+                col = max_col
+            else:
+                raise Exception("This should not happen.")
+            positions.append(to_coordinates(col, row))
+            prev_row = row
+            prev_col = col
+        length = max(to_coordinates(max_col + 1, max_row + 1))
+        return positions, length
