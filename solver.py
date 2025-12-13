@@ -190,7 +190,9 @@ class Solver:
         )
         return NTree(trees=trees)
 
-    def _solve_single_params(self, tree_count, params):
+    def _solve_single_params(
+        self, tree_count: int, params: RotatedTreeGridParams
+    ):
         dx = params.dx
         dy = params.dy
         width = params.width
