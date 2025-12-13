@@ -1,4 +1,7 @@
 import os
+import subprocess
+import sys
+from datetime import datetime
 
 # Force matplotlib to use a non-GUI backend BEFORE any imports
 os.environ["MPLBACKEND"] = "Agg"  # Non-interactive backend
@@ -6,13 +9,12 @@ os.environ["MATPLOTLIB_BACKEND"] = "Agg"
 
 import argparse
 import logging
-import sys
 
 import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
-from solver import Solver, get_default_solver
+from solver import get_default_solver
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -20,6 +22,36 @@ TRACKING_URI = "sqlite:///mlruns.db"
 EXPERIMENT_NAME = "Christmas Tree Packing"
 LOG_FORMAT = "%(asctime)s %(levelname)s %(message)s"
 DATEFMT = "%Y-%m-%d %H:%M:%S"
+
+
+def get_git_run_name() -> str:
+    """
+    Get a run name based on git commit information.
+    Falls back to timestamp if git is not available.
+    """
+    try:
+        # Get the latest commit message (first line)
+        commit_message = subprocess.check_output(
+            ["git", "log", "-1", "--pretty=%s"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+
+        # Clean up the commit message for use as a run name
+        # Remove special characters that might cause issues
+        clean_message = " ".join(commit_message.splitlines())
+        clean_message = clean_message[:50]  # Truncate if too long
+
+        return clean_message
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # Git is not available or not in a git repo
+        # Fall back to timestamp-based name
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        return f"local-run-{timestamp}"
+
+
+DEFAULT_RUN_NAME = get_git_run_name()
 
 
 logger = logging.getLogger(__name__)
@@ -37,9 +69,18 @@ def parse_args() -> argparse.Namespace:
         "--mlflow", action="store_true", help="Enable MLflow logging"
     )
     parser.add_argument(
+        "--run-name",
+        type=str,
+        default=DEFAULT_RUN_NAME,
+        help=(
+            f"MLflow run name (default: {DEFAULT_RUN_NAME[:50]}..."
+            if len(DEFAULT_RUN_NAME) > 50
+            else f"MLflow run name (default: {DEFAULT_RUN_NAME})"
+        ),
+    )
+    parser.add_argument(
         "--draft", action="store_true", help="Skip output file creation"
     )
-
     parser.add_argument(
         "--plot-every",
         type=int,
@@ -49,7 +90,6 @@ def parse_args() -> argparse.Namespace:
             "Use 0 to disable plotting entirely. Default: 10."
         ),
     )
-
     parser.add_argument(
         "--max",
         type=int,
@@ -59,7 +99,6 @@ def parse_args() -> argparse.Namespace:
             f"(default: {DEFAULT_MAX_TREE_COUNT})"
         ),
     )
-
     parser.add_argument(
         "--no-parallel",
         action="store_true",
@@ -71,6 +110,7 @@ def parse_args() -> argparse.Namespace:
     except SystemExit:
         return argparse.Namespace(
             mlflow=False,
+            run_name=DEFAULT_RUN_NAME,
             draft=False,
             plot_every=10,
             max=DEFAULT_MAX_TREE_COUNT,
@@ -78,12 +118,13 @@ def parse_args() -> argparse.Namespace:
         )
 
 
-def start_mlflow(solver: Solver):
+def start_mlflow(run_name: str):
+    """Start an MLflow run with the given name."""
     import mlflow
 
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT_NAME)
-    return mlflow.start_run(run_name=solver.name)
+    return mlflow.start_run(run_name=run_name)
 
 
 def in_notebook():
@@ -122,7 +163,7 @@ def main() -> None:
     parallel = not args.no_parallel
     solver = get_default_solver(parallel=parallel)
 
-    run = start_mlflow(solver) if args.mlflow else None
+    run = start_mlflow(args.run_name) if args.mlflow else None
 
     try:
         solution = solver.solve(problem_sizes=range(1, args.max + 1))
@@ -154,7 +195,9 @@ def main() -> None:
         if args.mlflow:
             import mlflow
 
+            mlflow.log_param("run_name", args.run_name)
             mlflow.log_metric("submission_score", score)
+            logger.info("MLflow run name: %s", args.run_name)
         else:
             logger.info("Skipped MLflow logging.")
 
@@ -169,6 +212,7 @@ def main() -> None:
             import mlflow
 
             mlflow.log_param("error", str(e))
+            mlflow.log_param("run_name", args.run_name)
             mlflow.end_run(status="FAILED")
         raise
     finally:

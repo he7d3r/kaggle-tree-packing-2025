@@ -114,10 +114,7 @@ class RotatedTreeGridParams:
 
 
 def get_default_solver(parallel: bool = True) -> "Solver":
-    return Solver(
-        name="Optimized Bisection-search grid packing: 0-90° rotations at 1° resolution; more width increments",
-        parallel=parallel,
-    )
+    return Solver(parallel=parallel)
 
 
 def _solve_single_helper(args):
@@ -135,8 +132,7 @@ class Solver:
     # Store the pre-computed parameters
     _GRID_PARAMS: Tuple[RotatedTreeGridParams, ...]
 
-    def __init__(self, name: str, parallel: bool = True):
-        self.name = name
+    def __init__(self, parallel: bool = True):
         self.parallel = parallel
         self._GRID_PARAMS = self._precompute_grid_params()
 
