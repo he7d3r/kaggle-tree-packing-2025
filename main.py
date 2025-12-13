@@ -159,8 +159,8 @@ def display_notebook_images():
 def main() -> None:
     args = parse_args()
 
-    plotter = Plotter()
     parallel = not args.no_parallel
+    plotter = Plotter(parallel=parallel)
     solver = get_default_solver(parallel=parallel)
 
     run = start_mlflow(args.run_name) if args.mlflow else None

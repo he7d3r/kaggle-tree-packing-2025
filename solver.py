@@ -1,9 +1,7 @@
-import math
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
 from functools import partial
-from itertools import product
 from typing import Callable, ClassVar, Sequence, Tuple
 
 from shapely import affinity
@@ -125,9 +123,8 @@ def _solve_single_helper(args):
 
 class Solver:
     ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
-        Decimal(a) for a in range(0, 91, 1)
+        Decimal(a / 32) for a in range(0, 1 + 90 * 32)
     )
-    WIDTH_INCREMENTS: ClassVar[Tuple[int, ...]] = tuple(range(-4, 1))
 
     # Store the pre-computed parameters
     _GRID_PARAMS: Tuple[RotatedTreeGridParams, ...]
@@ -176,81 +173,64 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed grid parameters.
         """
-        best_length = math.inf
-        best_n_tree_args = {}
+        best_length = Decimal("Infinity")
+        best_positions: list[tuple[Decimal, Decimal]] = [
+            (Decimal("NaN"), Decimal("NaN")),
+        ]
 
-        all_params = {
-            "grid_params": self._GRID_PARAMS,
-            "width_increments": self.WIDTH_INCREMENTS,
-        }
-        for param_combination in product(*all_params.values()):
-            params, increment = param_combination
-            side = self._ideal_square_side(
-                params.bounding_rectangle_area, tree_count
-            )
-            base_n_cols = self._estimate_n_cols(side, params.dx)
-            n_cols = base_n_cols + increment
-            if n_cols < 1 or tree_count < n_cols:
-                continue
-            side_length = compute_side_length(
-                tree_count,
-                n_cols,
-                params.dx,
-                params.width,
-                params.dy,
-                params.height,
-            )
-            if side_length < best_length:
-                best_length = side_length
-                best_n_tree_args["angle"] = params.angle
-                best_n_tree_args["n_trees"] = tree_count
-                best_n_tree_args["n_cols"] = n_cols
-                best_n_tree_args["dx"] = params.dx
-                best_n_tree_args["dy"] = params.dy
-        return self._grid_n_tree(**best_n_tree_args)
+        best_angle = Decimal("NaN")
+        for params in self._GRID_PARAMS:
+            dx = params.dx
+            dy = params.dy
+            width = params.width
+            height = params.height
 
-    def _estimate_n_cols(self, side: Decimal, dx: Decimal) -> int:
-        # Near-square estimate
-        return math.ceil(side / dx)
+            def to_coordinates(col: int, row: int) -> tuple[Decimal, Decimal]:
+                x = Decimal(0) if col == 0 else width + Decimal(col - 1) * dx
+                y = Decimal(0) if row == 0 else height + Decimal(row - 1) * dy
+                return x, y
 
-    def _ideal_square_side(
-        self, bounding_rectangle_area: Decimal, n: int
-    ) -> Decimal:
-        """Calculates ideal square side using pre-computed area factor."""
-        total_area = bounding_rectangle_area * n
-        return Decimal(total_area).sqrt()
-
-    def _grid_n_tree(
-        self,
-        angle: Decimal,
-        n_trees: int,
-        n_cols: int,
-        dx: Decimal,
-        dy: Decimal,
-    ) -> NTree:
-        """Arrange `n_trees` rotated Christmas trees in a near-square grid."""
+            positions = [to_coordinates(0, 0)]
+            prev_row = 0
+            prev_col = 0
+            max_row = 0
+            max_col = 0
+            while len(positions) < tree_count:
+                if prev_row == max_row and prev_col == max_col:
+                    # The previous tree was at the corner of a rectangle.
+                    # Start a new row or new column (whichever is best)
+                    next_col_end, next_row_end = to_coordinates(
+                        max_col + 2, max_row + 2
+                    )
+                    if next_col_end <= next_row_end:
+                        row = 0
+                        col = max_col + 1
+                        max_col += 1
+                    else:
+                        row = max_row + 1
+                        col = 0
+                        max_row += 1
+                elif prev_row == max_row:
+                    # Continue adding to the previous row until it is full.
+                    # This does not change max_row and max_col
+                    row = max_row
+                    col = prev_col + 1
+                elif prev_col == max_col:
+                    # Continue adding to the previous column until it is full.
+                    # This does not change max_row and max_col
+                    row = prev_row + 1
+                    col = max_col
+                else:
+                    raise Exception("This should not happen.")
+                positions.append(to_coordinates(col, row))
+                prev_row = row
+                prev_col = col
+            length = max(to_coordinates(max_col + 1, max_row + 1))
+            if length < best_length:
+                best_length = length
+                best_positions = positions
+                best_angle = params.angle
         trees = tuple(
-            ChristmasTree(
-                center_x=(t % n_cols) * dx,
-                center_y=(t // n_cols) * dy,
-                angle=angle,
-            )
-            for t in range(n_trees)
+            ChristmasTree(*pos, angle=best_angle) for pos in best_positions
         )
         return NTree(trees=trees)
-
-
-def compute_side_length(
-    tree_count: int,
-    n_cols: int,
-    dx: Decimal,
-    width: Decimal,
-    dy: Decimal,
-    height: Decimal,
-) -> Decimal:
-    n_rows = (Decimal(tree_count) / Decimal(n_cols)).to_integral_exact(
-        rounding=ROUND_CEILING
-    )
-    width = dx * Decimal(n_cols - 1) + width
-    height = dy * Decimal(n_rows - 1) + height
-    return max(width, height)
