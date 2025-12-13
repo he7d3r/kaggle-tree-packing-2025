@@ -13,7 +13,7 @@ from tqdm import tqdm
 from christmas_tree import ChristmasTree, NTree, to_scale
 from solution import Solution
 
-BISECTION_TOLERANCE = Decimal("0.000025")
+BISECTION_TOLERANCE = Decimal("0.00008")
 
 
 def _relevant_collision(a: Polygon, b: Polygon) -> bool:
@@ -115,7 +115,7 @@ class RotatedTreeGridParams:
 
 def get_default_solver(parallel: bool = True) -> "Solver":
     return Solver(
-        name="Optimized Bisection-search grid packing: 0-90° rotations at 1° resolution",
+        name="Optimized Bisection-search grid packing: 0-90° rotations at 1° resolution; more width increments",
         parallel=parallel,
     )
 
@@ -130,7 +130,7 @@ class Solver:
     ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
         Decimal(a) for a in range(0, 91, 1)
     )
-    WIDTH_INCREMENTS: ClassVar[Tuple[int, ...]] = (-1, 0)
+    WIDTH_INCREMENTS: ClassVar[Tuple[int, ...]] = tuple(range(-4, 1))
 
     # Store the pre-computed parameters
     _GRID_PARAMS: Tuple[RotatedTreeGridParams, ...]
