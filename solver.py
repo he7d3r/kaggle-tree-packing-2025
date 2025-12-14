@@ -173,14 +173,16 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed grid parameters.
         """
+        best_angle = Decimal("NaN")
         best_length = Decimal("Infinity")
         best_positions: list[tuple[Decimal, Decimal]] = [
             (Decimal("NaN"), Decimal("NaN")),
         ]
-
-        best_angle = Decimal("NaN")
         for params in self._GRID_PARAMS:
-            positions, length = self._solve_single_params(tree_count, params)
+            positions, length = self._solve_single_params(
+                tree_count,
+                to_coordinates=partial(to_coordinates, params=params),
+            )
             if length < best_length:
                 best_length = length
                 best_positions = positions
@@ -191,18 +193,10 @@ class Solver:
         return NTree(trees=trees)
 
     def _solve_single_params(
-        self, tree_count: int, params: RotatedTreeGridParams
+        self,
+        tree_count: int,
+        to_coordinates: Callable[[int, int], tuple[Decimal, Decimal]],
     ) -> tuple[list[tuple[Decimal, Decimal]], Decimal]:
-        dx = params.dx
-        dy = params.dy
-        width = params.width
-        height = params.height
-
-        def to_coordinates(col: int, row: int) -> tuple[Decimal, Decimal]:
-            x = Decimal(0) if col == 0 else width + Decimal(col - 1) * dx
-            y = Decimal(0) if row == 0 else height + Decimal(row - 1) * dy
-            return x, y
-
         positions = [to_coordinates(0, 0)]
         prev_row = 0
         prev_col = 0
@@ -239,3 +233,15 @@ class Solver:
             prev_col = col
         length = max(to_coordinates(max_col + 1, max_row + 1))
         return positions, length
+
+
+def to_coordinates(
+    col: int, row: int, params: RotatedTreeGridParams
+) -> tuple[Decimal, Decimal]:
+    dx = params.dx
+    dy = params.dy
+    width = params.width
+    height = params.height
+    x = Decimal(0) if col == 0 else width + Decimal(col - 1) * dx
+    y = Decimal(0) if row == 0 else height + Decimal(row - 1) * dy
+    return x, y
