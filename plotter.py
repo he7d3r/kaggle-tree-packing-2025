@@ -13,8 +13,10 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from christmas_tree import ChristmasTree, NTree, from_scale
-from metric import DataFrameScorer
+from metric import BaseScorer
 from solution import Solution
+
+logger = logging.getLogger(__name__)
 
 
 def _plot_single_n_tree_helper(args):
@@ -102,29 +104,23 @@ class Plotter:
             dtype={"x": "string", "y": "string", "deg": "string"},
             index_col="id",
         )
-
-        # Create scorer
-        scorer = DataFrameScorer(submission_df, parallel=self.parallel)
-        scorer.preprocess()
-        n_trees_list = scorer.n_trees()
+        solution = Solution.from_dataframe(submission_df)
 
         # Compute scores
         n_trees = []
         scores = []
 
-        logger = logging.getLogger(__name__)
         logger.info("Computing scores for each n-tree configuration...")
 
-        for n_tree_obj in n_trees_list:
+        for n_tree_obj in solution.n_trees:
+            n_trees.append(n_tree_obj.tree_count)
             try:
-                score = scorer.score_n_tree(n_tree_obj)
-                n_trees.append(n_tree_obj.tree_count)
+                score = BaseScorer.score_n_tree(n_tree_obj)
                 scores.append(float(score))
             except Exception as e:
                 logger.warning(
                     f"Error scoring n-tree {n_tree_obj.tree_count}: {e}"
                 )
-                n_trees.append(n_tree_obj.tree_count)
                 scores.append(np.nan)
 
         # Create the plot
