@@ -103,11 +103,11 @@ class DataFrameScorer(BaseScorer):
         self._validate_limits(df)
         self.submission_df = df
 
-    def n_trees(self) -> list[NTree]:
-        return [
+    def n_trees(self) -> tuple[NTree, ...]:
+        return tuple(
             NTree.from_dataframe(n_tree_df)
             for _, n_tree_df in Solution.n_tree_dfs(self.submission_df)
-        ]
+        )
 
     def _remove_leading_s_prefix(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.astype(str)
