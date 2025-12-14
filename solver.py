@@ -134,7 +134,8 @@ class Solver:
         classmethod constructor on RotatedTreeGridParams.
         """
         return tuple(
-            RotatedTreeGridParams.from_angle(angle) for angle in self.ANGLES
+            RotatedTreeGridParams.from_angle(angle)
+            for angle in tqdm(self.ANGLES, desc="Pre-computing params")
         )
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
