@@ -116,6 +116,11 @@ def _solve_single_helper(args):
     return solver._solve_single(tree_count)
 
 
+def _precompute_grid_params_helper(angle: Decimal) -> RotatedTreeGridParams:
+    """Helper for parallel grid pre-computation."""
+    return RotatedTreeGridParams.from_angle(angle)
+
+
 class Solver:
     ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
         Decimal(a / 32) for a in range(0, 1 + 90 * 32)
@@ -130,13 +135,30 @@ class Solver:
 
     def _precompute_grid_params(self) -> Tuple[RotatedTreeGridParams, ...]:
         """
-        Computes RotatedTreeGridParams for all angles by calling the
-        classmethod constructor on RotatedTreeGridParams.
+        Computes RotatedTreeGridParams for all angles.
+        Runs in parallel if self.parallel is True.
         """
-        return tuple(
-            RotatedTreeGridParams.from_angle(angle)
-            for angle in tqdm(self.ANGLES, desc="Pre-computing params")
-        )
+        if not self.parallel:
+            return tuple(
+                RotatedTreeGridParams.from_angle(angle)
+                for angle in tqdm(
+                    self.ANGLES, desc="Pre-computing params (seq)"
+                )
+            )
+
+        with ProcessPoolExecutor() as executor:
+            params = tuple(
+                tqdm(
+                    executor.map(
+                        _precompute_grid_params_helper,
+                        self.ANGLES,
+                    ),
+                    total=len(self.ANGLES),
+                    desc="Pre-computing params (parallel)",
+                )
+            )
+
+        return params
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem for the specified n-tree sizes."""
