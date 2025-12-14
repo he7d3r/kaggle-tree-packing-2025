@@ -123,7 +123,7 @@ def _precompute_grid_params_helper(angle: Decimal) -> RotatedTreeGridParams:
 
 class Solver:
     ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
-        Decimal(a / 32) for a in range(0, 1 + 90 * 32)
+        Decimal(a / 64) for a in range(0, 1 + 90 * 64)
     )
 
     # Store the pre-computed parameters
