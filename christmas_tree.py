@@ -142,6 +142,27 @@ class NTree:
 
     trees: tuple[ChristmasTree, ...] = ()
 
+    def __post_init__(self):
+        self._validate_no_overlaps()
+
+    def _validate_no_overlaps(self) -> None:
+        """Check for collisions using neighborhood search."""
+        if len(self.trees) <= 1:
+            return
+
+        polygons = self.polygons
+        r_tree = STRtree(polygons)
+        # Checking for collisions
+        for i, poly in enumerate(polygons):
+            indices = r_tree.query(poly)
+            for index in indices:
+                if index == i:  # don't check against self
+                    continue
+                if detect_overlap(poly, polygons[index]):
+                    raise ParticipantVisibleError(
+                        f"Overlapping trees in n-tree with {self.tree_count} trees"
+                    )
+
     @cached_property
     def tree_count(self) -> int:
         return len(self.trees)
@@ -182,18 +203,3 @@ class NTree:
             for _, row in df.iterrows()
         )
         return NTree(trees=trees)
-
-    def validate(self) -> None:
-        """Check for collisions using neighborhood search"""
-        polygons = self.polygons
-        r_tree = STRtree(polygons)
-        # Checking for collisions
-        for i, poly in enumerate(polygons):
-            indices = r_tree.query(poly)
-            for index in indices:
-                if index == i:  # don't check against self
-                    continue
-                if detect_overlap(poly, polygons[index]):
-                    raise ParticipantVisibleError(
-                        f"Overlapping trees in n-tree {self.name}"
-                    )

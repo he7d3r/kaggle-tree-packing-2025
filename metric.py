@@ -53,7 +53,6 @@ class BaseScorer:
 
     @staticmethod
     def score_n_tree(n_tree: NTree) -> Decimal:
-        n_tree.validate()
         return n_tree.score
 
 
