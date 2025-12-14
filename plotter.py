@@ -117,7 +117,7 @@ class Plotter:
 
         for n_tree_obj in n_trees_list:
             try:
-                score = scorer._score_n_tree(n_tree_obj)
+                score = scorer.score_n_tree(n_tree_obj)
                 n_trees.append(n_tree_obj.tree_count)
                 scores.append(float(score))
             except Exception as e:

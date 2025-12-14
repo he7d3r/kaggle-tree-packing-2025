@@ -14,11 +14,6 @@ class ParticipantVisibleError(Exception):
     pass
 
 
-def _score_n_tree_helper(args):
-    scorer, n_tree = args
-    return scorer._score_n_tree(n_tree)
-
-
 class BaseScorer:
     """
     Santa 2025 Metric
@@ -34,28 +29,23 @@ class BaseScorer:
 
     def score(self) -> float:
         self.preprocess()
-
         n_tree_list = self.n_trees()
-        total_score = Decimal("0")
 
         if not self.parallel:
-            # Sequential – profiling-friendly
-            for n_tree in tqdm(n_tree_list, desc="Scoring (seq)"):
-                total_score += self._score_n_tree(n_tree)
+            total_score = sum(
+                self.score_n_tree(n_tree)
+                for n_tree in tqdm(n_tree_list, desc="Scoring (seq)")
+            )
             return float(total_score)
 
-        # Parallel version
         with ProcessPoolExecutor() as executor:
-            results = tqdm(
-                executor.map(
-                    _score_n_tree_helper,
-                    ((self, n_tree) for n_tree in n_tree_list),
-                ),
-                total=len(n_tree_list),
-                desc="Scoring (parallel)",
+            total_score = sum(
+                tqdm(
+                    executor.map(self.score_n_tree, n_tree_list),
+                    total=len(n_tree_list),
+                    desc="Scoring (parallel)",
+                )
             )
-            for val in results:
-                total_score += val
 
         return float(total_score)
 
@@ -67,7 +57,8 @@ class BaseScorer:
         """Must be implemented by subclasses."""
         raise NotImplementedError
 
-    def _score_n_tree(self, n_tree: NTree) -> Decimal:
+    @staticmethod
+    def score_n_tree(n_tree: NTree) -> Decimal:
         # Create tree objects from the solution values and
         # check for collisions using neighborhood search
         polygons = n_tree.polygons
