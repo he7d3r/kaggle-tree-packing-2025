@@ -2,7 +2,7 @@ import logging
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from decimal import Decimal
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
