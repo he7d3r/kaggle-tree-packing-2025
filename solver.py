@@ -175,23 +175,22 @@ class Solver:
         """
         best_length = Decimal("Infinity")
         for params in self._GRID_PARAMS:
-            to_coord = partial(to_coordinates, params=params)
-            positions, length = self._solve_single_params(tree_count, to_coord)
+            coord_fn = partial(to_coordinates, params=params)
+            side_fn = partial(bounding_square_side, params=params)
+            positions, length = self._solve_single_params(tree_count, side_fn)
             if length < best_length:
                 best_length = length
                 best_positions = positions
                 best_angle = params.angle
-                best_to_coord = to_coord
-        trees = tuple(
-            ChristmasTree(*best_to_coord(*position), angle=best_angle)
-            for position in best_positions
-        )
+                best_coord_fn = coord_fn
+        coords = tuple(best_coord_fn(*position) for position in best_positions)
+        trees = tuple(ChristmasTree(*xy, angle=best_angle) for xy in coords)
         return NTree(trees=trees)
 
     def _solve_single_params(
         self,
         tree_count: int,
-        to_coordinates: Callable[[int, int], tuple[Decimal, Decimal]],
+        compute_side: Callable[[int, int], Decimal],
     ) -> tuple[list[tuple[int, int]], Decimal]:
         positions = [(0, 0)]
         prev_row = 0
@@ -202,9 +201,9 @@ class Solver:
             if prev_row == max_row and prev_col == max_col:
                 # The previous tree was at the corner of a rectangle.
                 # Start a new row or new column (whichever is best)
-                x_col, y_col = to_coordinates(max_col + 2, max_row + 1)
-                x_row, y_row = to_coordinates(max_col + 1, max_row + 2)
-                if max(x_col, y_col) <= max(x_row, y_row):
+                side_adding_col = compute_side(max_col + 1, max_row)
+                side_adding_row = compute_side(max_col, max_row + 1)
+                if side_adding_col <= side_adding_row:
                     row = 0
                     col = max_col + 1
                     max_col += 1
@@ -227,17 +226,22 @@ class Solver:
             positions.append((col, row))
             prev_row = row
             prev_col = col
-        length = max(to_coordinates(max_col + 1, max_row + 1))
+        length = compute_side(max_col, max_row)
         return positions, length
 
 
 def to_coordinates(
     col: int, row: int, params: RotatedTreeGridParams
 ) -> tuple[Decimal, Decimal]:
-    dx = params.dx
-    dy = params.dy
-    width = params.width
-    height = params.height
-    x = Decimal(0) if col == 0 else width + Decimal(col - 1) * dx
-    y = Decimal(0) if row == 0 else height + Decimal(row - 1) * dy
+    x = Decimal(col) * params.dx
+    y = Decimal(row) * params.dy
     return x, y
+
+
+def bounding_square_side(
+    n_cols: int, n_rows: int, params: RotatedTreeGridParams
+) -> Decimal:
+    x, y = to_coordinates(n_cols, n_rows, params)
+    x += params.width
+    y += params.height
+    return max(x, y)
