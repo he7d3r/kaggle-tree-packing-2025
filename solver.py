@@ -8,37 +8,32 @@ from shapely import affinity
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree, NTree, to_scale
+from christmas_tree import ChristmasTree, NTree, detect_overlap, to_scale
 from solution import Solution
 
 BISECTION_TOLERANCE = Decimal("0.000001")
 
 
-def _relevant_collision(a: Polygon, b: Polygon) -> bool:
-    """Check for intersection without touching."""
-    return a.intersects(b) and not a.touches(b)
-
-
 def _valid_h_offset(polygon: Polygon, offset: Decimal) -> bool:
     """Test if horizontal offset causes collision."""
     moved_x = affinity.translate(polygon, xoff=float(to_scale(offset)))
-    return _relevant_collision(moved_x, polygon)
+    return detect_overlap(moved_x, polygon)
 
 
 def _valid_v_offset(polygon: Polygon, dx: Decimal, offset: Decimal) -> bool:
     """Test vertical offset collision considering horizontal neighbors."""
     moved_y = affinity.translate(polygon, yoff=float(to_scale(offset)))
-    if _relevant_collision(moved_y, polygon):
+    if detect_overlap(moved_y, polygon):
         return True
 
     moved_x = affinity.translate(polygon, xoff=float(to_scale(dx)))
-    if _relevant_collision(moved_x, moved_y):
+    if detect_overlap(moved_x, moved_y):
         return True
 
     moved_xy = affinity.translate(
         polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(offset))
     )
-    if _relevant_collision(moved_xy, polygon):
+    if detect_overlap(moved_xy, polygon):
         return True
 
     return False

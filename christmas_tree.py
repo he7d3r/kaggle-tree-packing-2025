@@ -14,6 +14,11 @@ getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
 
 
+def detect_overlap(a: Polygon, b: Polygon) -> bool:
+    """Check for intersection without touching."""
+    return a.intersects(b) and not a.touches(b)
+
+
 def to_scale(value: Decimal) -> Decimal:
     return value * SCALE_FACTOR
 
