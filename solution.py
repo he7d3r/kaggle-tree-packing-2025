@@ -11,6 +11,9 @@ class Solution:
 
     n_trees: tuple[NTree, ...] = ()
 
+    def score(self) -> float:
+        return float(sum(n_tree.score for n_tree in self.n_trees))
+
     def to_dataframe(self) -> pd.DataFrame:
         """Creates a submission DataFrame from the Solution's n_trees data."""
         data = [

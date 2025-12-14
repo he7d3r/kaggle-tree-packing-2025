@@ -13,7 +13,6 @@ os.environ["MATPLOTLIB_BACKEND"] = "Agg"
 import argparse
 import logging
 
-from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
 from solver import get_default_solver
 
@@ -225,14 +224,13 @@ def main() -> None:
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
-            score = SolutionScorer(solution).score()
         else:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
-
-            submission_df = Solution.from_csv(OUTPUT_FILE).to_dataframe()
+            solution = Solution.from_csv(OUTPUT_FILE)
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
-            score = DataFrameScorer(submission_df).score()
+
+        score = solution.score()
 
         if args.mlflow:
             import mlflow
