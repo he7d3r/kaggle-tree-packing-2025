@@ -192,7 +192,7 @@ class Solver:
 
     def _solve_single_params(
         self, tree_count: int, params: RotatedTreeGridParams
-    ):
+    ) -> tuple[list[tuple[Decimal, Decimal]], Decimal]:
         dx = params.dx
         dy = params.dy
         width = params.width
