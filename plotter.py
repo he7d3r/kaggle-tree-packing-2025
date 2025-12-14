@@ -5,7 +5,6 @@ from typing import Callable, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
 from numpy.typing import NDArray
@@ -94,13 +93,7 @@ class Plotter:
         submission_file : str
             Path to the submission CSV file to analyze.
         """
-        # Load the submission data
-        submission_df = pd.read_csv(
-            submission_file,
-            dtype={"x": "string", "y": "string", "deg": "string"},
-            index_col="id",
-        )
-        solution = Solution.from_dataframe(submission_df)
+        solution = Solution.from_csv(submission_file)
 
         # Compute scores
         n_trees = []
@@ -160,13 +153,7 @@ class Plotter:
 
         for idx, submission_file in enumerate(submission_files):
             try:
-                # Load the submission data
-                submission_df = pd.read_csv(
-                    submission_file,
-                    dtype={"x": "string", "y": "string", "deg": "string"},
-                    index_col="id",
-                )
-                solution = Solution.from_dataframe(submission_df)
+                solution = Solution.from_csv(submission_file)
 
                 # Compute scores
                 n_trees = []

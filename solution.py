@@ -33,6 +33,15 @@ class Solution:
         return df
 
     @staticmethod
+    def from_csv(submission_file: str = "submission.csv") -> "Solution":
+        submission_df = pd.read_csv(
+            submission_file,
+            dtype={"x": "string", "y": "string", "deg": "string"},
+            index_col="id",
+        )
+        return Solution.from_dataframe(submission_df)
+
+    @staticmethod
     def from_dataframe(df: pd.DataFrame) -> "Solution":
         """Populates the Solution object from a DataFrame."""
         df = df.apply(lambda col: col.str.lstrip("s"))
@@ -40,13 +49,13 @@ class Solution:
         return Solution(n_trees=n_trees)
 
     @staticmethod
-    def n_tree_dfs(df: pd.DataFrame):
-        """Extracts n-tree data-frames from the DataFrame."""
-        return df.groupby(df.index.astype(str).str.split("_").str[0])
-
-    @staticmethod
     def n_trees_from_dataframe(df: pd.DataFrame):
         return tuple(
             NTree.from_dataframe(n_tree_df)
             for _, n_tree_df in Solution.n_tree_dfs(df)
         )
+
+    @staticmethod
+    def n_tree_dfs(df: pd.DataFrame):
+        """Extracts n-tree data-frames from the DataFrame."""
+        return df.groupby(df.index.astype(str).str.split("_").str[0])

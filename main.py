@@ -4,14 +4,14 @@ import subprocess
 import sys
 from datetime import datetime
 
+from solution import Solution
+
 # Force matplotlib to use a non-GUI backend BEFORE any imports
 os.environ["MPLBACKEND"] = "Agg"  # Non-interactive backend
 os.environ["MATPLOTLIB_BACKEND"] = "Agg"
 
 import argparse
 import logging
-
-import pandas as pd
 
 from metric import DataFrameScorer, SolutionScorer
 from plotter import Plotter
@@ -230,11 +230,7 @@ def main() -> None:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
 
-            submission_df = pd.read_csv(
-                OUTPUT_FILE,
-                dtype={"x": "string", "y": "string", "deg": "string"},
-                index_col="id",
-            )
+            submission_df = Solution.from_csv(OUTPUT_FILE).to_dataframe()
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
             score = DataFrameScorer(submission_df, parallel=parallel).score()
 
