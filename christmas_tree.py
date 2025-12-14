@@ -137,6 +137,10 @@ class NTree:
     def side_length(self) -> Decimal:
         return max(self.sides)
 
+    @cached_property
+    def score(self) -> Decimal:
+        return (self.side_length**2) / Decimal(self.tree_count)
+
     @property
     def name(self) -> str:
         return f"{self.tree_count:03d}"

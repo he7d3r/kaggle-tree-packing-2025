@@ -2,11 +2,10 @@ from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 
 import pandas as pd
-from shapely.ops import unary_union
 from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import NTree, detect_overlap, from_scale
+from christmas_tree import NTree, detect_overlap
 from solution import Solution
 
 
@@ -60,13 +59,7 @@ class BaseScorer:
     @staticmethod
     def score_n_tree(n_tree: NTree) -> Decimal:
         BaseScorer.check_collisions(n_tree)
-
-        polygons = n_tree.polygons
-        # bounding square score
-        bounds = unary_union(polygons).bounds
-        side_length_scaled = max(bounds[2] - bounds[0], bounds[3] - bounds[1])
-
-        return (from_scale(side_length_scaled) ** 2) / Decimal(len(polygons))
+        return n_tree.score
 
     @staticmethod
     def check_collisions(n_tree: NTree) -> None:

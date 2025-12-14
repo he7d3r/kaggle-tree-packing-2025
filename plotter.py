@@ -12,7 +12,6 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from christmas_tree import ChristmasTree, NTree, from_scale
-from metric import BaseScorer
 from solution import Solution
 
 
@@ -109,8 +108,7 @@ class Plotter:
         for n_tree_obj in solution.n_trees:
             n_trees.append(n_tree_obj.tree_count)
             try:
-                score = BaseScorer.score_n_tree(n_tree_obj)
-                scores.append(float(score))
+                scores.append(float(n_tree_obj.score))
             except Exception as e:
                 print(e)
                 scores.append(np.nan)
@@ -176,8 +174,7 @@ class Plotter:
                 for n_tree_obj in solution.n_trees:
                     n_trees.append(n_tree_obj.tree_count)
                     try:
-                        score = BaseScorer.score_n_tree(n_tree_obj)
-                        scores.append(float(score))
+                        scores.append(float(n_tree_obj.score))
                     except Exception as e:
                         print(e)
                         scores.append(np.nan)
