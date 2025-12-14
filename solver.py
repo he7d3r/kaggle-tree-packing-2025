@@ -173,22 +173,18 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed grid parameters.
         """
-        best_angle = Decimal("NaN")
         best_length = Decimal("Infinity")
-        best_positions: list[tuple[Decimal, Decimal]] = [
-            (Decimal("NaN"), Decimal("NaN")),
-        ]
         for params in self._GRID_PARAMS:
-            positions, length = self._solve_single_params(
-                tree_count,
-                to_coordinates=partial(to_coordinates, params=params),
-            )
+            to_coord = partial(to_coordinates, params=params)
+            positions, length = self._solve_single_params(tree_count, to_coord)
             if length < best_length:
                 best_length = length
                 best_positions = positions
                 best_angle = params.angle
+                best_to_coord = to_coord
         trees = tuple(
-            ChristmasTree(*pos, angle=best_angle) for pos in best_positions
+            ChristmasTree(*best_to_coord(*position), angle=best_angle)
+            for position in best_positions
         )
         return NTree(trees=trees)
 
@@ -196,8 +192,8 @@ class Solver:
         self,
         tree_count: int,
         to_coordinates: Callable[[int, int], tuple[Decimal, Decimal]],
-    ) -> tuple[list[tuple[Decimal, Decimal]], Decimal]:
-        positions = [to_coordinates(0, 0)]
+    ) -> tuple[list[tuple[int, int]], Decimal]:
+        positions = [(0, 0)]
         prev_row = 0
         prev_col = 0
         max_row = 0
@@ -228,7 +224,7 @@ class Solver:
                 col = max_col
             else:
                 raise Exception("This should not happen.")
-            positions.append(to_coordinates(col, row))
+            positions.append((col, row))
             prev_row = row
             prev_col = col
         length = max(to_coordinates(max_col + 1, max_row + 1))
