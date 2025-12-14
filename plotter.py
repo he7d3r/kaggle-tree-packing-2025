@@ -112,6 +112,7 @@ class Plotter:
                 score = BaseScorer.score_n_tree(n_tree_obj)
                 scores.append(float(score))
             except Exception as e:
+                print(e)
                 scores.append(np.nan)
 
         # Create the plot
@@ -123,7 +124,7 @@ class Plotter:
             linewidth=1,
             marker="o",
             markersize=3,
-            label="Score per n-tree",
+            label=f"Score per n-tree - {Path(submission_file).name}",
         )
 
         # Configure
@@ -132,7 +133,91 @@ class Plotter:
         ax.set_ylabel("Score per n-tree")
         ax.set_ylim(bottom=0)
         ax.grid(True, alpha=0.3)
-        ax.set_title(f"Score Analysis - {submission_file}")
+        ax.set_title(f"Score Analysis - {Path(submission_file).name}")
+        ax.legend()
+        plt.tight_layout()
+
+        # Save the plot
+        output_path = self.output_dir / "score_analysis.png"
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+
+    def plot_scores_analysis_multiple(
+        self, submission_files: list[str]
+    ) -> None:
+        """
+        Create a multi-line plot showing scores for each n-tree configuration
+        from multiple submission files.
+
+        Parameters
+        ----------
+        submission_files : list[str]
+            List of paths to submission CSV files to analyze.
+        """
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        # Define a colormap for different lines
+        colors = plt.cm.tab10(np.linspace(0, 1, min(len(submission_files), 10)))  # type: ignore
+
+        for idx, submission_file in enumerate(submission_files):
+            try:
+                # Load the submission data
+                submission_df = pd.read_csv(
+                    submission_file,
+                    dtype={"x": "string", "y": "string", "deg": "string"},
+                    index_col="id",
+                )
+                solution = Solution.from_dataframe(submission_df)
+
+                # Compute scores
+                n_trees = []
+                scores = []
+                for n_tree_obj in solution.n_trees:
+                    n_trees.append(n_tree_obj.tree_count)
+                    try:
+                        score = BaseScorer.score_n_tree(n_tree_obj)
+                        scores.append(float(score))
+                    except Exception as e:
+                        print(e)
+                        scores.append(np.nan)
+
+                # Plot the line for this file
+                color = (
+                    colors[idx % len(colors)]
+                    if len(submission_files) <= 10
+                    else None
+                )
+                label = Path(submission_file).name
+                ax.plot(
+                    n_trees,
+                    scores,
+                    "-",
+                    linewidth=1,
+                    marker="o",
+                    markersize=3,
+                    label=label,
+                    color=color,
+                )
+
+            except Exception as e:
+                print(f"Error processing {submission_file}: {e}")
+                continue
+
+        # Configure
+        ax.set_xlabel("Number of Trees (n)")
+        ax.set_xlim(left=0, right=201)
+        ax.set_ylabel("Score per n-tree")
+        ax.set_ylim(bottom=0)
+        ax.grid(True, alpha=0.3)
+
+        # Set title based on number of files
+        if len(submission_files) == 1:
+            ax.set_title(f"Score Analysis - {Path(submission_files[0]).name}")
+        else:
+            ax.set_title(f"Score Analysis - {len(submission_files)} files")
+
+        ax.legend(loc="best", fontsize="small")
         plt.tight_layout()
 
         # Save the plot

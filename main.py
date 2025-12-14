@@ -1,3 +1,4 @@
+import glob
 import os
 import subprocess
 import sys
@@ -106,8 +107,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--analyze",
-        action="store_true",
-        help="Run score analysis and create plots from submission file",
+        nargs="?",
+        const="submission.csv",  # Default when --analyze is used without argument
+        help=(
+            "Run score analysis and create plots from CSV file(s). "
+            "Accepts a single file path or a glob pattern (e.g., '*.csv'). "
+            "Default: 'submission.csv' when flag is used without argument."
+        ),
     )
 
     try:
@@ -167,9 +173,23 @@ def main() -> None:
 
     # If analyze flag is set, run analysis and exit
     if args.analyze:
-        logger.info("Starting score analysis of submission file...")
+        logger.info(f"Starting score analysis with pattern: {args.analyze}")
         plotter = Plotter(parallel=not args.no_parallel)
-        plotter.plot_scores_analysis(OUTPUT_FILE)
+
+        # Check if pattern contains wildcards
+        if "*" in args.analyze or "?" in args.analyze or "[" in args.analyze:
+            # Use glob to find matching files
+            csv_files = sorted(glob.glob(args.analyze))
+            if not csv_files:
+                logger.warning(
+                    f"No files found matching pattern: {args.analyze}"
+                )
+                return
+            logger.info(f"Found {len(csv_files)} file(s): {csv_files}")
+            plotter.plot_scores_analysis_multiple(csv_files)
+        else:
+            # Single file case
+            plotter.plot_scores_analysis(args.analyze)
 
         # Display analysis plot in notebook if applicable
         if in_notebook():
