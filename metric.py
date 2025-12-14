@@ -73,7 +73,6 @@ class DataFrameScorer(BaseScorer):
 
     def preprocess(self):
         df = self._remove_leading_s_prefix(self.submission_df)
-        self._validate_limits(df)
         self.submission_df = df
 
     def n_trees(self) -> tuple[NTree, ...]:
@@ -87,10 +86,3 @@ class DataFrameScorer(BaseScorer):
             )
         df = df.apply(lambda col: col.str.slice(1))
         return df
-
-    def _validate_limits(self, df: pd.DataFrame) -> None:
-        limit = 100
-        if (df[["x", "y"]].astype(float).abs() > limit).any().any():
-            raise ParticipantVisibleError(
-                f"x and/or y values outside the bounds of -{limit} to {limit}."
-            )

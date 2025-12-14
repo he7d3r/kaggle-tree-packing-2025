@@ -91,6 +91,27 @@ class ChristmasTree:
     center_y: Decimal = Decimal("0")
     angle: Decimal = Decimal("0")
 
+    def __post_init__(self):
+        """Validate tree position and angle upon initialization."""
+        self._validate_limits()
+        self._validate_angle()
+
+    def _validate_limits(self) -> None:
+        """Validate that coordinates are within bounds."""
+        limit = Decimal("100")
+        if abs(self.center_x) > limit or abs(self.center_y) > limit:
+            raise ParticipantVisibleError(
+                f"Tree coordinates ({self.center_x}, {self.center_y}) "
+                f"outside bounds of -{limit} to {limit}."
+            )
+
+    def _validate_angle(self) -> None:
+        """Validate that angle is within [0, 360) range."""
+        if self.angle < Decimal("0") or self.angle >= Decimal("360"):
+            raise ParticipantVisibleError(
+                f"Tree angle {self.angle} outside valid range [0, 360)."
+            )
+
     @cached_property
     def polygon(self) -> Polygon:
         rotated = affinity.rotate(BASE_TREE, float(self.angle), origin=(0, 0))
