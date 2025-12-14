@@ -8,10 +8,15 @@ import pandas as pd
 from shapely import affinity
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
+from shapely.strtree import STRtree
 
 # Set precision for Decimal
 getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
+
+
+class ParticipantVisibleError(Exception):
+    pass
 
 
 def detect_overlap(a: Polygon, b: Polygon) -> bool:
@@ -156,3 +161,18 @@ class NTree:
             for _, row in df.iterrows()
         )
         return NTree(trees=trees)
+
+    def validate(self) -> None:
+        """Check for collisions using neighborhood search"""
+        polygons = self.polygons
+        r_tree = STRtree(polygons)
+        # Checking for collisions
+        for i, poly in enumerate(polygons):
+            indices = r_tree.query(poly)
+            for index in indices:
+                if index == i:  # don't check against self
+                    continue
+                if detect_overlap(poly, polygons[index]):
+                    raise ParticipantVisibleError(
+                        f"Overlapping trees in n-tree {self.name}"
+                    )

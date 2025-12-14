@@ -2,15 +2,10 @@ from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 
 import pandas as pd
-from shapely.strtree import STRtree
 from tqdm import tqdm
 
-from christmas_tree import NTree, detect_overlap
+from christmas_tree import NTree, ParticipantVisibleError
 from solution import Solution
-
-
-class ParticipantVisibleError(Exception):
-    pass
 
 
 class BaseScorer:
@@ -58,24 +53,8 @@ class BaseScorer:
 
     @staticmethod
     def score_n_tree(n_tree: NTree) -> Decimal:
-        BaseScorer.check_collisions(n_tree)
+        n_tree.validate()
         return n_tree.score
-
-    @staticmethod
-    def check_collisions(n_tree: NTree) -> None:
-        # check for collisions using neighborhood search
-        polygons = n_tree.polygons
-        r_tree = STRtree(polygons)
-        # Checking for collisions
-        for i, poly in enumerate(polygons):
-            indices = r_tree.query(poly)
-            for index in indices:
-                if index == i:  # don't check against self
-                    continue
-                if detect_overlap(poly, polygons[index]):
-                    raise ParticipantVisibleError(
-                        f"Overlapping trees in n-tree {n_tree.name}"
-                    )
 
 
 class SolutionScorer(BaseScorer):
