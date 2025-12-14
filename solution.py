@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from christmas_tree import NTree
+from christmas_tree import NTree, ParticipantVisibleError
 
 
 @dataclass(frozen=True)
@@ -44,9 +44,18 @@ class Solution:
     @staticmethod
     def from_dataframe(df: pd.DataFrame) -> "Solution":
         """Populates the Solution object from a DataFrame."""
-        df = df.apply(lambda col: col.str.lstrip("s"))
+        Solution.validate_dataframe(df)
+        df = df.apply(lambda col: col.str.slice(1))
         n_trees = Solution.n_trees_from_dataframe(df)
         return Solution(n_trees=n_trees)
+
+    @staticmethod
+    def validate_dataframe(df: pd.DataFrame) -> None:
+        if df.apply(lambda col: col.str.startswith("s")).all().all():
+            return
+        raise ParticipantVisibleError(
+            "Value(s) in columns x, y, deg found without `s` prefix."
+        )
 
     @staticmethod
     def n_trees_from_dataframe(df: pd.DataFrame):
