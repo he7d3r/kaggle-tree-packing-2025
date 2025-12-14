@@ -225,14 +225,14 @@ def main() -> None:
 
         if args.draft:
             logger.info("Skipped submission file creation (draft mode).")
-            score = SolutionScorer(solution, parallel=parallel).score()
+            score = SolutionScorer(solution).score()
         else:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
 
             submission_df = Solution.from_csv(OUTPUT_FILE).to_dataframe()
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
-            score = DataFrameScorer(submission_df, parallel=parallel).score()
+            score = DataFrameScorer(submission_df).score()
 
         if args.mlflow:
             import mlflow

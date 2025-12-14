@@ -1,8 +1,6 @@
-from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 
 import pandas as pd
-from tqdm import tqdm
 
 from christmas_tree import NTree, ParticipantVisibleError
 from solution import Solution
@@ -18,30 +16,9 @@ class BaseScorer:
     calculations in the shapely (v 2.1.2) library.
     """
 
-    def __init__(self, parallel: bool = True) -> None:
-        self.parallel = parallel
-
     def score(self) -> float:
         self.preprocess()
-        n_tree_list = self.n_trees()
-
-        if not self.parallel:
-            total_score = sum(
-                self.score_n_tree(n_tree)
-                for n_tree in tqdm(n_tree_list, desc="Scoring (seq)")
-            )
-            return float(total_score)
-
-        with ProcessPoolExecutor() as executor:
-            total_score = sum(
-                tqdm(
-                    executor.map(self.score_n_tree, n_tree_list),
-                    total=len(n_tree_list),
-                    desc="Scoring (parallel)",
-                )
-            )
-
-        return float(total_score)
+        return float(sum(n_tree.score for n_tree in self.n_trees()))
 
     def preprocess(self):
         """Optional hook for subclasses."""
@@ -57,8 +34,7 @@ class BaseScorer:
 
 
 class SolutionScorer(BaseScorer):
-    def __init__(self, solution: Solution, parallel: bool = True):
-        super().__init__(parallel=parallel)
+    def __init__(self, solution: Solution):
         self.solution = solution
 
     def n_trees(self) -> tuple[NTree, ...]:
@@ -66,8 +42,7 @@ class SolutionScorer(BaseScorer):
 
 
 class DataFrameScorer(BaseScorer):
-    def __init__(self, submission_df: pd.DataFrame, parallel: bool = True):
-        super().__init__(parallel=parallel)
+    def __init__(self, submission_df: pd.DataFrame):
         self.submission_df = submission_df
 
     def preprocess(self):
