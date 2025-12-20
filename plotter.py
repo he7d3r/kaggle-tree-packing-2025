@@ -9,9 +9,10 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
 from numpy.typing import NDArray
+from shapely import Polygon
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree, NTree, from_scale
+from christmas_tree import ChristmasTree, NTree, from_float
 from solution import Solution
 
 T_co = TypeVar("T_co", covariant=True)
@@ -288,9 +289,11 @@ class Plotter:
     def _plot_tree(
         self, tree: ChristmasTree, ax: Axes, color: NDArray[np.float64]
     ) -> None:
-        # Rescale for plotting
-        x_scaled, y_scaled = tree.polygon.exterior.xy
-        x = [from_scale(val) for val in x_scaled]
-        y = [from_scale(val) for val in y_scaled]
-        ax.plot(x, y, color=color)
+        x, y = _polygon_to_xy(tree.polygon)
+        ax.plot([float(v) for v in x], [float(v) for v in y], color=color)
         ax.fill(x, y, alpha=0.5, color=color)
+
+
+def _polygon_to_xy(polygon: Polygon) -> tuple[list[Decimal], list[Decimal]]:
+    xs, ys = polygon.exterior.xy
+    return ([from_float(x) for x in xs], [from_float(y) for y in ys])

@@ -12,11 +12,10 @@ from typing import (
     TypeVar,
 )
 
-from shapely import affinity
 from shapely.geometry import Polygon
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree, NTree, detect_overlap, to_scale
+from christmas_tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 from solution import Solution
 
 T_co = TypeVar("T_co", covariant=True)
@@ -47,23 +46,21 @@ BISECTION_TOLERANCE = Decimal("0.000001")
 
 def _valid_h_offset(polygon: Polygon, offset: Decimal) -> bool:
     """Test if horizontal offset causes collision."""
-    moved_x = affinity.translate(polygon, xoff=float(to_scale(offset)))
+    moved_x = GeometryAdapter.translate(polygon, dx=offset)
     return detect_overlap(moved_x, polygon)
 
 
 def _valid_v_offset(polygon: Polygon, dx: Decimal, offset: Decimal) -> bool:
     """Test vertical offset collision considering horizontal neighbors."""
-    moved_y = affinity.translate(polygon, yoff=float(to_scale(offset)))
+    moved_y = GeometryAdapter.translate(polygon, dy=offset)
     if detect_overlap(moved_y, polygon):
         return True
 
-    moved_x = affinity.translate(polygon, xoff=float(to_scale(dx)))
+    moved_x = GeometryAdapter.translate(polygon, dx=dx)
     if detect_overlap(moved_x, moved_y):
         return True
 
-    moved_xy = affinity.translate(
-        polygon, xoff=float(to_scale(dx)), yoff=float(to_scale(offset))
-    )
+    moved_xy = GeometryAdapter.translate(polygon, dx=dx, dy=offset)
     if detect_overlap(moved_xy, polygon):
         return True
 

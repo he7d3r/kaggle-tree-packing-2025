@@ -2,17 +2,57 @@ import math
 from dataclasses import dataclass
 from decimal import Decimal, getcontext
 from functools import cached_property
-from typing import cast
+from typing import TypeVar
 
 import pandas as pd
 from shapely import affinity
 from shapely.geometry import Polygon
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 from shapely.strtree import STRtree
+
+G = TypeVar("G", bound=BaseGeometry)
 
 # Set precision for Decimal
 getcontext().prec = 25
 SCALE_FACTOR = Decimal("1e15")
+
+
+def to_float(d: Decimal) -> float:
+    return float(d * SCALE_FACTOR)
+
+
+def from_float(f: float) -> Decimal:
+    return Decimal(f) / SCALE_FACTOR
+
+
+class GeometryAdapter:
+    @staticmethod
+    def translate(
+        geometry: G, dx: Decimal = Decimal(0), dy: Decimal = Decimal(0)
+    ) -> G:
+        return affinity.translate(
+            geometry, xoff=to_float(dx), yoff=to_float(dy)
+        )
+
+    @staticmethod
+    def rotate(
+        polygon: Polygon,
+        angle_deg: Decimal,
+    ) -> Polygon:
+        return affinity.rotate(polygon, float(angle_deg), origin=(0.0, 0.0))
+
+    @staticmethod
+    def bounds(
+        geometry: BaseGeometry,
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        minx, miny, maxx, maxy = geometry.bounds
+        return (
+            from_float(minx),
+            from_float(miny),
+            from_float(maxx),
+            from_float(maxy),
+        )
 
 
 class ParticipantVisibleError(Exception):
@@ -22,29 +62,6 @@ class ParticipantVisibleError(Exception):
 def detect_overlap(a: Polygon, b: Polygon) -> bool:
     """Check for intersection without touching."""
     return a.intersects(b) and not a.touches(b)
-
-
-def to_scale(value: Decimal) -> Decimal:
-    return value * SCALE_FACTOR
-
-
-def from_scale(value: float) -> Decimal:
-    return Decimal(value) / SCALE_FACTOR
-
-
-def unscaled_bounds(
-    bounds: tuple[float, float, float, float],
-) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    return cast(
-        tuple[Decimal, Decimal, Decimal, Decimal],
-        tuple(from_scale(v) for v in bounds),
-    )
-
-
-def scaled_points(
-    points: tuple[tuple[Decimal, Decimal], ...],
-) -> tuple[tuple[Decimal, Decimal], ...]:
-    return tuple((to_scale(x), to_scale(y)) for x, y in points)
 
 
 def _create_initial_tree_polygon() -> Polygon:
@@ -60,7 +77,7 @@ def _create_initial_tree_polygon() -> Polygon:
     base_y = Decimal("0.0")
     trunk_bottom_y = -trunk_h
 
-    unscaled_points: tuple[tuple[Decimal, Decimal], ...] = (
+    points: tuple[tuple[Decimal, Decimal], ...] = (
         (Decimal("0.0"), tip_y),
         (top_w / 2, tier_1_y),
         (top_w / 4, tier_1_y),
@@ -77,7 +94,7 @@ def _create_initial_tree_polygon() -> Polygon:
         (-(top_w / 4), tier_1_y),
         (-(top_w / 2), tier_1_y),
     )
-    return Polygon(scaled_points(unscaled_points))
+    return Polygon([(to_float(x), to_float(y)) for x, y in points])
 
 
 BASE_TREE: Polygon = _create_initial_tree_polygon()
@@ -114,17 +131,14 @@ class ChristmasTree:
 
     @cached_property
     def polygon(self) -> Polygon:
-        rotated = affinity.rotate(BASE_TREE, float(self.angle), origin=(0, 0))
-        translated = affinity.translate(
-            rotated,
-            xoff=float(to_scale(self.center_x)),
-            yoff=float(to_scale(self.center_y)),
+        poly = GeometryAdapter.rotate(BASE_TREE, self.angle)
+        return GeometryAdapter.translate(
+            poly, dx=self.center_x, dy=self.center_y
         )
-        return translated
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-        return unscaled_bounds(self.polygon.bounds)
+        return GeometryAdapter.bounds(self.polygon)
 
     @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
@@ -199,8 +213,8 @@ class NTree:
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
         if self.tree is not None:
-            return unscaled_bounds(self.tree.polygon.bounds)
-        return unscaled_bounds(unary_union(self.polygons).bounds)
+            return GeometryAdapter.bounds(self.tree.polygon)
+        return GeometryAdapter.bounds(unary_union(self.polygons))
 
     @cached_property
     def sides(self) -> tuple[Decimal, Decimal]:
