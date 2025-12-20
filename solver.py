@@ -130,6 +130,13 @@ def _precompute_grid_params_helper(angle: Decimal) -> RotatedTreeGridParams:
     return RotatedTreeGridParams.from_angle(angle)
 
 
+@dataclass(frozen=True)
+class CandidatePlacement:
+    grid: RotatedTreeGridParams
+    positions: list[tuple[int, int]]
+    side: Decimal
+
+
 class Solver:
     ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
         Decimal(a / 64) for a in range(0, 1 + 90 * 64)
@@ -200,20 +207,22 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed grid parameters.
         """
-        best_length = Decimal("Infinity")
+        best: CandidatePlacement | None = None
 
         for grid in self._GRID_PARAMS:
-            positions, length = self._solve_single_params(tree_count, grid)
-            if length < best_length:
-                best_length = length
-                best_positions = positions
-                best_grid = grid
+            positions, side = self._solve_single_params(tree_count, grid)
+            candidate = CandidatePlacement(grid, positions, side)
+
+            if best is None or candidate.side < best.side:
+                best = candidate
+
+        assert best is not None
 
         coords = tuple(
-            best_grid.coordinates(col, row) for col, row in best_positions
+            best.grid.coordinates(col, row) for col, row in best.positions
         )
         trees = tuple(
-            ChristmasTree(x, y, angle=best_grid.angle) for x, y in coords
+            ChristmasTree(x, y, angle=best.grid.angle) for x, y in coords
         )
         return NTree.from_trees(trees)
 
