@@ -203,7 +203,7 @@ class Solver:
                 best_coord_fn = coord_fn
         coords = tuple(best_coord_fn(*position) for position in best_positions)
         trees = tuple(ChristmasTree(*xy, angle=best_angle) for xy in coords)
-        return NTree(trees=trees)
+        return NTree.from_trees(trees)
 
     def _solve_single_params(
         self,

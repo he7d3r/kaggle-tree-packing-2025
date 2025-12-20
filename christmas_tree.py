@@ -138,41 +138,68 @@ class ChristmasTree:
 
 @dataclass(frozen=True)
 class NTree:
-    """Immutable collection of ChristmasTree objects."""
+    """
+    Immutable recursive tree structure.
 
-    trees: tuple[ChristmasTree, ...] = ()
+    - Leaf node: tree is not None, n_trees is empty.
+    - Internal node: tree is None, n_trees is non-empty.
+    """
 
-    def __post_init__(self):
+    tree: ChristmasTree | None = None
+    n_trees: tuple["NTree", ...] = ()
+
+    def __post_init__(self) -> None:
+        self._validate_structure()
         self._validate_no_overlaps()
+
+    def _validate_structure(self) -> None:
+        if self.tree is None and not self.n_trees:
+            raise ValueError("NTree must have either a tree or n_trees.")
+
+        if self.tree is not None and self.n_trees:
+            raise ValueError("NTree cannot have both a tree and n_trees.")
 
     def _validate_no_overlaps(self) -> None:
         """Check for collisions using neighborhood search."""
-        if len(self.trees) <= 1:
+        polygons = self.polygons
+        if len(polygons) <= 1:
             return
 
-        polygons = self.polygons
         r_tree = STRtree(polygons)
         # Checking for collisions
         for i, poly in enumerate(polygons):
-            indices = r_tree.query(poly)
-            for index in indices:
-                if index == i:  # don't check against self
+            for j in r_tree.query(poly):
+                if i >= j:
                     continue
-                if detect_overlap(poly, polygons[index]):
+                if detect_overlap(poly, polygons[j]):
                     raise ParticipantVisibleError(
-                        f"Overlapping trees in n-tree with {self.tree_count} trees"
+                        "Overlapping trees in NTree with "
+                        f"{self.tree_count} trees"
                     )
 
     @cached_property
+    def trees(self) -> tuple[ChristmasTree, ...]:
+        """Flattened tuple of all leaf ChristmasTree objects in this NTree."""
+        if self.tree is not None:
+            return (self.tree,)
+        return tuple(t for n_tree in self.n_trees for t in n_tree.trees)
+
+    @cached_property
     def tree_count(self) -> int:
-        return len(self.trees)
+        if self.tree is not None:
+            return 1
+        return sum(n_tree.tree_count for n_tree in self.n_trees)
 
     @cached_property
     def polygons(self) -> tuple[Polygon, ...]:
-        return tuple(t.polygon for t in self.trees)
+        if self.tree is not None:
+            return (self.tree.polygon,)
+        return tuple(p for n_tree in self.n_trees for p in n_tree.polygons)
 
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        if self.tree is not None:
+            return unscaled_bounds(self.tree.polygon.bounds)
         return unscaled_bounds(unary_union(self.polygons).bounds)
 
     @cached_property
@@ -193,13 +220,41 @@ class NTree:
         return f"{self.tree_count:03d}"
 
     @staticmethod
+    def leaf(tree: ChristmasTree) -> "NTree":
+        return NTree(tree=tree)
+
+    @staticmethod
+    def combine(*trees: "NTree") -> "NTree":
+        return NTree(n_trees=trees)
+
+    @staticmethod
     def from_dataframe(df: pd.DataFrame) -> "NTree":
-        trees = tuple(
-            ChristmasTree(
-                center_x=Decimal(row["x"]),
-                center_y=Decimal(row["y"]),
-                angle=Decimal(row["deg"]),
+        """
+        Build an NTree from a DataFrame with columns ['x', 'y', 'deg'].
+
+        Each row becomes a leaf NTree; the result is a single composite NTree.
+        """
+        leaves = tuple(
+            NTree.leaf(
+                ChristmasTree(
+                    center_x=Decimal(x),
+                    center_y=Decimal(y),
+                    angle=Decimal(deg),
+                )
             )
-            for _, row in df.iterrows()
+            for x, y, deg in zip(df["x"], df["y"], df["deg"])
         )
-        return NTree(trees=trees)
+        return NTree._from_leaves(leaves)
+
+    @staticmethod
+    def from_trees(trees: tuple[ChristmasTree, ...]) -> "NTree":
+        leaves = tuple(NTree.leaf(t) for t in trees)
+        return NTree._from_leaves(leaves)
+
+    @staticmethod
+    def _from_leaves(leaves: tuple["NTree", ...]) -> "NTree":
+        if not leaves:
+            raise ValueError("Cannot build NTree from empty leaves")
+        if len(leaves) == 1:
+            return leaves[0]
+        return NTree.combine(*leaves)
