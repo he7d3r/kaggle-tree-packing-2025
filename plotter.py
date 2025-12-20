@@ -1,7 +1,8 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from decimal import Decimal
+from functools import partial
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional, Protocol, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,11 +14,42 @@ from tqdm import tqdm
 from christmas_tree import ChristmasTree, NTree, from_scale
 from solution import Solution
 
+T_co = TypeVar("T_co", covariant=True)
+R = TypeVar("R")
 
-def _plot_single_n_tree_helper(args):
-    """Helper function for parallel plotting of a single n_tree."""
-    plotter, n_tree, output_path = args
-    return plotter._plot_single_n_tree(n_tree, output_path)
+
+class _SizedContainer(Protocol[T_co]):
+    def __iter__(self) -> Iterator[T_co]: ...
+    def __len__(self) -> int: ...
+
+
+def _for_each(
+    fn: Callable[..., None],
+    items: _SizedContainer[tuple],
+    *,
+    parallel: bool,
+    desc: str,
+    max_workers: int | None = None,
+) -> None:
+    if not parallel:
+        for item in tqdm(items, desc=desc):
+            fn(*item)
+        return
+
+    # Use ProcessPoolExecutor for CPU-bound tasks (matplotlib rendering)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(fn, *item) for item in items]
+        # Process results as they complete with progress bar
+        for future in tqdm(as_completed(futures), total=len(items), desc=desc):
+            future.result()
+
+
+def _plot_single_n_tree_task(
+    plotter: "Plotter",
+    n_tree: NTree,
+    output_path: Path,
+) -> None:
+    plotter._plot_single_n_tree(n_tree, output_path)
 
 
 class Plotter:
@@ -53,7 +85,6 @@ class Plotter:
     ) -> None:
         """
         Plot all n_tree objects that satisfy filter_fn.
-        Supports both sequential and parallel execution.
 
         Parameters
         ----------
@@ -70,17 +101,21 @@ class Plotter:
             if filter_fn is None or filter_fn(n_tree)
         ]
 
-        if not self.parallel:
-            # Sequential version - useful for debugging/profiling
-            for n_tree in tqdm(n_trees_to_plot, desc="Plotting n-trees (seq)"):
-                output_path = self.output_dir / self.filename_format.format(
-                    n_tree.tree_count
-                )
-                self._plot_single_n_tree(n_tree, output_path)
-            return
+        def make_task(n_tree: NTree):
+            output_path = self.output_dir / self.filename_format.format(
+                n_tree.tree_count
+            )
+            return (self, n_tree, output_path)
 
-        # Parallel version
-        self._plot_parallel(n_trees_to_plot)
+        tasks = [make_task(n_tree) for n_tree in n_trees_to_plot]
+
+        _for_each(
+            partial(_plot_single_n_tree_task),
+            tasks,
+            parallel=self.parallel,
+            desc="Plotting n-trees",
+            max_workers=self.max_workers,
+        )
 
     def plot_scores_analysis(
         self, submission_file: str = "submission.csv"
@@ -208,43 +243,6 @@ class Plotter:
         output_path = self.output_dir / "score_analysis.png"
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
-
-    def _plot_parallel(self, n_trees: list[NTree]) -> None:
-        """Parallel plotting implementation."""
-        # Prepare arguments for each task
-        tasks = [
-            (
-                self,
-                n_tree,
-                self.output_dir
-                / self.filename_format.format(n_tree.tree_count),
-            )
-            for n_tree in n_trees
-        ]
-
-        # Use ProcessPoolExecutor for CPU-bound tasks (matplotlib rendering)
-        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all tasks
-            futures = {
-                executor.submit(_plot_single_n_tree_helper, task): n_tree
-                for task, n_tree in zip(tasks, n_trees)
-            }
-
-            # Process results as they complete with progress bar
-            for future in tqdm(
-                as_completed(futures),
-                total=len(futures),
-                desc="Plotting n-trees (parallel)",
-            ):
-                n_tree = futures[future]
-                try:
-                    future.result()  # Raises exception if any
-                except Exception as e:
-                    print(
-                        f"Error plotting n-tree with {n_tree.tree_count} "
-                        f"trees: {e}"
-                    )
-                    raise
 
     def _plot_single_n_tree(self, n_tree: NTree, output_path: Path) -> None:
         """

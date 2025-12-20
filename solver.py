@@ -2,7 +2,15 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
 from functools import partial
-from typing import Callable, ClassVar, Sequence, Tuple
+from typing import (
+    Callable,
+    ClassVar,
+    Iterator,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypeVar,
+)
 
 from shapely import affinity
 from shapely.geometry import Polygon
@@ -10,6 +18,29 @@ from tqdm import tqdm
 
 from christmas_tree import ChristmasTree, NTree, detect_overlap, to_scale
 from solution import Solution
+
+T_co = TypeVar("T_co", covariant=True)
+R = TypeVar("R")
+
+
+class _SizedContainer(Protocol[T_co]):
+    def __iter__(self) -> Iterator[T_co]: ...
+    def __len__(self) -> int: ...
+
+
+def _map(
+    fn: Callable[[T_co], R],
+    items: _SizedContainer[T_co],
+    *,
+    parallel: bool,
+    desc: str,
+) -> tuple[R, ...]:
+    if not parallel:
+        return tuple(tqdm((fn(item) for item in items), desc=desc))
+
+    with ProcessPoolExecutor() as executor:
+        return tuple(tqdm(executor.map(fn, items), total=len(items), desc=desc))
+
 
 BISECTION_TOLERANCE = Decimal("0.000001")
 
@@ -119,17 +150,6 @@ def get_default_solver(parallel: bool = True) -> "Solver":
     return Solver(parallel=parallel)
 
 
-def _solve_single_helper(args):
-    """Helper for parallel execution to unpack arguments."""
-    solver, tree_count = args
-    return solver._solve_single(tree_count)
-
-
-def _precompute_grid_params_helper(angle: Decimal) -> RotatedTreeGridParams:
-    """Helper for parallel grid pre-computation."""
-    return RotatedTreeGridParams.from_angle(angle)
-
-
 @dataclass(frozen=True)
 class CandidatePlacement:
     grid: RotatedTreeGridParams
@@ -149,57 +169,25 @@ class Solver:
         self.parallel = parallel
         self._GRID_PARAMS = self._precompute_grid_params()
 
-    def _precompute_grid_params(self) -> Tuple[RotatedTreeGridParams, ...]:
+    def _precompute_grid_params(self) -> tuple[RotatedTreeGridParams, ...]:
         """
         Computes RotatedTreeGridParams for all angles.
-        Runs in parallel if self.parallel is True.
         """
-        if not self.parallel:
-            return tuple(
-                RotatedTreeGridParams.from_angle(angle)
-                for angle in tqdm(
-                    self.ANGLES, desc="Pre-computing params (seq)"
-                )
-            )
-
-        with ProcessPoolExecutor() as executor:
-            params = tuple(
-                tqdm(
-                    executor.map(
-                        _precompute_grid_params_helper,
-                        self.ANGLES,
-                    ),
-                    total=len(self.ANGLES),
-                    desc="Pre-computing params (parallel)",
-                )
-            )
-
-        return params
+        return _map(
+            RotatedTreeGridParams.from_angle,
+            self.ANGLES,
+            parallel=self.parallel,
+            desc="Pre-computing params",
+        )
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem for the specified n-tree sizes."""
-
-        if not self.parallel:
-            n_trees = tuple(
-                self._solve_single(tree_count)
-                for tree_count in tqdm(
-                    problem_sizes, desc="Placing trees (seq)"
-                )
-            )
-            return Solution(n_trees=n_trees)
-
-        with ProcessPoolExecutor() as executor:
-            n_trees = tuple(
-                tqdm(
-                    executor.map(
-                        _solve_single_helper,
-                        ((self, tree_count) for tree_count in problem_sizes),
-                    ),
-                    total=len(problem_sizes),
-                    desc="Placing trees (parallel)",
-                )
-            )
-
+        n_trees = _map(
+            self._solve_single,
+            problem_sizes,
+            parallel=self.parallel,
+            desc="Placing trees",
+        )
         return Solution(n_trees=n_trees)
 
     def _solve_single(self, tree_count: int) -> NTree:
