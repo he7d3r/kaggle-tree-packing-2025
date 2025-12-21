@@ -12,7 +12,6 @@ from typing import (
     Mapping,
     Protocol,
     Sequence,
-    Tuple,
     TypeVar,
 )
 
@@ -111,12 +110,14 @@ class TileConfig:
         tree = ChristmasTree(angle=self.angle)
         return NTree.leaf(tree)
 
+    def build_tree(self, x: Decimal, y: Decimal) -> ChristmasTree:
+        return ChristmasTree(x, y, angle=self.angle)
+
 
 @dataclass(frozen=True)
 class PackingTile:
     """Hashable/frozen class to store pre-computed tile and area parameters."""
 
-    angle: Decimal
     width: Decimal
     height: Decimal
     dx: Decimal
@@ -160,7 +161,6 @@ class PackingTile:
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
         return cls(
-            angle=n_tree.tree.angle,
             width=width,
             height=height,
             dx=dx,
@@ -203,6 +203,15 @@ def expand_param_grid(
         yield dict(zip(keys, combo))
 
 
+def build_tile_pair(cfg: TileConfig) -> tuple[TileConfig, PackingTile]:
+    """
+    Build the geometric PackingTile corresponding to a TileConfig.
+    """
+    n_tree = cfg.build_n_tree()
+    tile = PackingTile.from_n_tree(n_tree)
+    return cfg, tile
+
+
 class Solver:
     PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
         "angle": tuple(Decimal(a / 64) for a in range(0, 1 + 90 * 64)),
@@ -210,19 +219,19 @@ class Solver:
     }
 
     # Store the pre-computed tiles
-    _tiles: Tuple[PackingTile, ...]
+    _tiles: tuple[tuple[TileConfig, PackingTile], ...]
 
     def __init__(self, parallel: bool = True):
         self.parallel = parallel
         self._tiles = self._precompute_tiles()
 
-    def _precompute_tiles(self) -> tuple[PackingTile, ...]:
+    def _precompute_tiles(self) -> tuple[tuple[TileConfig, PackingTile], ...]:
         """
         Computes PackingTile for all parameter combinations.
         """
         configs = self._build_configs()
         return _map(
-            PackingTile.from_config,
+            build_tile_pair,
             configs,
             parallel=self.parallel,
             desc="Pre-computing tiles",
@@ -249,21 +258,20 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed tile parameters.
         """
-        best: Tiling | None = None
+        best: tuple[TileConfig, Tiling] | None = None
 
-        for tile in self._tiles:
+        for config, tile in self._tiles:
             candidate = self._construct_tiling(tree_count, tile)
-            if best is None or candidate.side < best.side:
-                best = candidate
+            if best is None or candidate.side < best[1].side:
+                best = (config, candidate)
 
         assert best is not None
+        config, tiling = best
 
         coords = tuple(
-            best.tile.coordinates(col, row) for col, row in best.positions
+            tiling.tile.coordinates(col, row) for col, row in tiling.positions
         )
-        trees = tuple(
-            ChristmasTree(x, y, angle=best.tile.angle) for x, y in coords
-        )
+        trees = tuple(config.build_tree(x, y) for x, y in coords)
         return NTree.from_trees(trees)
 
     def _construct_tiling(self, tree_count: int, tile: PackingTile) -> Tiling:
