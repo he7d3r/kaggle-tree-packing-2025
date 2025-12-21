@@ -187,6 +187,7 @@ class Tiling:
     tile: PackingTile
     positions: tuple[tuple[int, int], ...]
     side: Decimal
+    config: TileConfig
 
 
 def expand_param_grid(
@@ -258,23 +259,24 @@ class Solver:
         Solves the placement for a single tree count, iterating over
         the pre-computed tile parameters.
         """
-        best: tuple[TileConfig, Tiling] | None = None
+        best: Tiling | None = None
 
         for config, tile in self._tiles:
-            candidate = self._construct_tiling(tree_count, tile)
-            if best is None or candidate.side < best[1].side:
-                best = (config, candidate)
+            candidate = self._construct_tiling(tree_count, tile, config)
+            if best is None or candidate.side < best.side:
+                best = candidate
 
         assert best is not None
-        config, tiling = best
 
         coords = tuple(
-            tiling.tile.coordinates(col, row) for col, row in tiling.positions
+            best.tile.coordinates(col, row) for col, row in best.positions
         )
-        trees = tuple(config.build_tree(x, y) for x, y in coords)
+        trees = tuple(best.config.build_tree(x, y) for x, y in coords)
         return NTree.from_trees(trees)
 
-    def _construct_tiling(self, tree_count: int, tile: PackingTile) -> Tiling:
+    def _construct_tiling(
+        self, tree_count: int, tile: PackingTile, config: TileConfig
+    ) -> Tiling:
         positions = [(0, 0)]
         prev_row = 0
         prev_col = 0
@@ -314,4 +316,4 @@ class Solver:
             prev_row = row
             prev_col = col
         length = tile.bounding_square_side(max_col, max_row)
-        return Tiling(tile, tuple(positions), length)
+        return Tiling(tile, tuple(positions), length, config)
