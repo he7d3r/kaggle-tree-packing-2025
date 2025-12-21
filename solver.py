@@ -69,10 +69,7 @@ def _has_vertical_collision(
         return True
 
     moved_xy = GeometryAdapter.translate(geometry, dx=dx, dy=offset)
-    if detect_overlap(moved_xy, geometry):
-        return True
-
-    return False
+    return detect_overlap(moved_xy, geometry)
 
 
 def _bisect_offset(
@@ -95,27 +92,33 @@ def _bisect_offset(
     return high
 
 
+# ---------------------------------------------------------------------
+# Domain objects
+# ---------------------------------------------------------------------
+
+
 @dataclass(frozen=True)
 class TileConfig:
     """
     Immutable configuration describing a tiling prototype.
     angle: Decimal
         Rotation angle (in degrees) of the only tree in the Tile pattern.
+    fake_param: int
+        Placeholder for future parameters.
     """
 
     angle: Decimal
-    fake_param: int  # placeholder for future extension
+    fake_param: int
 
     def build_n_tree(self) -> NTree:
-        tree = ChristmasTree(angle=self.angle)
-        return NTree.leaf(tree)
+        return NTree.leaf(ChristmasTree(angle=self.angle))
 
     def build_tree(self, x: Decimal, y: Decimal) -> ChristmasTree:
         return ChristmasTree(x, y, angle=self.angle)
 
 
 @dataclass(frozen=True)
-class PackingTile:
+class TileMetrics:
     """Hashable/frozen class to store pre-computed tile and area parameters."""
 
     width: Decimal
@@ -124,25 +127,12 @@ class PackingTile:
     dy: Decimal
     bounding_rectangle_area: Decimal
 
-    @staticmethod
-    def from_config(config: TileConfig) -> "PackingTile":
-        """
-        Stage 1: build a PackingTile from a TileConfig describing
-        a single rotated tree.
-        """
-        n_tree = config.build_n_tree()
-        return PackingTile.from_n_tree(n_tree)
-
     @classmethod
-    def from_n_tree(cls, n_tree: NTree) -> "PackingTile":
-        """
-        Computes dx, dy, and bounding rectangle for a tiling prototype/pattern.
-        """
+    def from_n_tree(cls, n_tree: NTree) -> "TileMetrics":
         assert n_tree.tree is not None, "Composite NTrees not supported yet."
 
         width, height = n_tree.sides
         geometry = unary_union(n_tree.polygons)
-        bounding_rectangle_area = width * height
 
         # Find minimal horizontal offset (dx)
         dx = _bisect_offset(
@@ -165,7 +155,7 @@ class PackingTile:
             height=height,
             dx=dx,
             dy=dy,
-            bounding_rectangle_area=bounding_rectangle_area,
+            bounding_rectangle_area=width * height,
         )
 
     def coordinates(self, col: int, row: int) -> tuple[Decimal, Decimal]:
@@ -173,21 +163,38 @@ class PackingTile:
 
     def bounding_square_side(self, n_cols: int, n_rows: int) -> Decimal:
         x, y = self.coordinates(n_cols, n_rows)
-        x += self.width
-        y += self.height
-        return max(x, y)
+        return max(x + self.width, y + self.height)
 
 
-def get_default_solver(parallel: bool = True) -> "Solver":
-    return Solver(parallel=parallel)
+@dataclass(frozen=True)
+class TilePattern:
+    config: TileConfig
+    metrics: TileMetrics
+
+    @classmethod
+    def from_config(cls, config: TileConfig) -> "TilePattern":
+        n_tree = config.build_n_tree()
+        metrics = TileMetrics.from_n_tree(n_tree)
+        return cls(config=config, metrics=metrics)
+
+    def build_n_tree(self, positions: Iterable[tuple[int, int]]) -> NTree:
+        trees = tuple(
+            self.config.build_tree(*self.metrics.coordinates(col, row))
+            for col, row in positions
+        )
+        return NTree.from_trees(trees)
 
 
 @dataclass(frozen=True)
 class Tiling:
-    tile: PackingTile
+    pattern: TilePattern
     positions: tuple[tuple[int, int], ...]
     side: Decimal
-    config: TileConfig
+
+
+# ---------------------------------------------------------------------
+# Solver
+# ---------------------------------------------------------------------
 
 
 def expand_param_grid(
@@ -199,43 +206,33 @@ def expand_param_grid(
     """
     keys = tuple(grid.keys())
     values = tuple(grid[k] for k in keys)
-
     for combo in product(*values):
         yield dict(zip(keys, combo))
 
 
-def build_tile_pair(cfg: TileConfig) -> tuple[TileConfig, PackingTile]:
-    """
-    Build the geometric PackingTile corresponding to a TileConfig.
-    """
-    n_tree = cfg.build_n_tree()
-    tile = PackingTile.from_n_tree(n_tree)
-    return cfg, tile
+def get_default_solver(parallel: bool = True) -> "Solver":
+    return Solver(parallel=parallel)
 
 
 class Solver:
     PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
         "angle": tuple(Decimal(a / 64) for a in range(0, 1 + 90 * 64)),
-        "fake_param": (0,),  # single-value placeholder
+        "fake_param": (0,),  # placeholder
     }
 
-    # Store the pre-computed tiles
-    _tiles: tuple[tuple[TileConfig, PackingTile], ...]
+    _patterns: tuple[TilePattern, ...]
 
     def __init__(self, parallel: bool = True):
         self.parallel = parallel
-        self._tiles = self._precompute_tiles()
+        self._patterns = self._precompute_patterns()
 
-    def _precompute_tiles(self) -> tuple[tuple[TileConfig, PackingTile], ...]:
-        """
-        Computes PackingTile for all parameter combinations.
-        """
+    def _precompute_patterns(self) -> tuple[TilePattern, ...]:
         configs = self._build_configs()
         return _map(
-            build_tile_pair,
+            TilePattern.from_config,
             configs,
             parallel=self.parallel,
-            desc="Pre-computing tiles",
+            desc="Pre-computing tile patterns",
         )
 
     @classmethod
@@ -261,22 +258,19 @@ class Solver:
         """
         best: Tiling | None = None
 
-        for config, tile in self._tiles:
-            candidate = self._construct_tiling(tree_count, tile, config)
+        for pattern in self._patterns:
+            candidate = self._construct_tiling(tree_count, pattern)
             if best is None or candidate.side < best.side:
                 best = candidate
 
         assert best is not None
-
-        coords = tuple(
-            best.tile.coordinates(col, row) for col, row in best.positions
-        )
-        trees = tuple(best.config.build_tree(x, y) for x, y in coords)
-        return NTree.from_trees(trees)
+        return best.pattern.build_n_tree(best.positions)
 
     def _construct_tiling(
-        self, tree_count: int, tile: PackingTile, config: TileConfig
+        self, tree_count: int, pattern: TilePattern
     ) -> Tiling:
+        metrics = pattern.metrics
+
         positions = [(0, 0)]
         prev_row = 0
         prev_col = 0
@@ -286,34 +280,27 @@ class Solver:
             if prev_row == max_row and prev_col == max_col:
                 # The previous tree was at the corner of a rectangle.
                 # Start a new row or new column (whichever is best)
-                side_adding_col = tile.bounding_square_side(
-                    max_col + 1, max_row
-                )
-                side_adding_row = tile.bounding_square_side(
-                    max_col, max_row + 1
-                )
-                if side_adding_col <= side_adding_row:
-                    row = 0
-                    col = max_col + 1
+                side_col = metrics.bounding_square_side(max_col + 1, max_row)
+                side_row = metrics.bounding_square_side(max_col, max_row + 1)
+                if side_col <= side_row:
+                    row, col = 0, max_col + 1
                     max_col += 1
                 else:
-                    row = max_row + 1
-                    col = 0
+                    row, col = max_row + 1, 0
                     max_row += 1
             elif prev_row == max_row:
                 # Continue adding to the previous row until it is full.
                 # This does not change max_row and max_col
-                row = max_row
-                col = prev_col + 1
+                row, col = max_row, prev_col + 1
             elif prev_col == max_col:
                 # Continue adding to the previous column until it is full.
                 # This does not change max_row and max_col
-                row = prev_row + 1
-                col = max_col
+                row, col = prev_row + 1, max_col
             else:
-                raise Exception("This should not happen.")
+                raise RuntimeError("Invalid tiling state")
+
             positions.append((col, row))
-            prev_row = row
-            prev_col = col
-        length = tile.bounding_square_side(max_col, max_row)
-        return Tiling(tile, tuple(positions), length, config)
+            prev_row, prev_col = row, col
+
+        side = metrics.bounding_square_side(max_col, max_row)
+        return Tiling(pattern, tuple(positions), side)
