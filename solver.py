@@ -35,7 +35,9 @@ def _map(
     desc: str,
 ) -> tuple[R, ...]:
     if not parallel:
-        return tuple(tqdm((fn(item) for item in items), desc=desc))
+        return tuple(
+            tqdm((fn(item) for item in items), total=len(items), desc=desc)
+        )
 
     with ProcessPoolExecutor() as executor:
         return tuple(tqdm(executor.map(fn, items), total=len(items), desc=desc))
