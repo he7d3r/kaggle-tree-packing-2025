@@ -2,10 +2,14 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
 from functools import partial
+from itertools import product
 from typing import (
+    Any,
     Callable,
     ClassVar,
+    Iterable,
     Iterator,
+    Mapping,
     Protocol,
     Sequence,
     Tuple,
@@ -101,6 +105,7 @@ class TileConfig:
     """
 
     angle: Decimal
+    fake_param: int  # placeholder for future extension
 
 
 @dataclass(frozen=True)
@@ -183,10 +188,25 @@ class Tiling:
     side: Decimal
 
 
+def expand_param_grid(
+    grid: Mapping[str, tuple[Any, ...]],
+) -> Iterable[dict[str, Any]]:
+    """
+    Expand a discrete parameter grid into dictionaries representing
+    all combinations (Cartesian product).
+    """
+    keys = tuple(grid.keys())
+    values = tuple(grid[k] for k in keys)
+
+    for combo in product(*values):
+        yield dict(zip(keys, combo))
+
+
 class Solver:
-    CONFIGS: ClassVar[tuple[TileConfig, ...]] = tuple(
-        TileConfig(angle=Decimal(a / 64)) for a in range(0, 1 + 90 * 64)
-    )
+    PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
+        "angle": tuple(Decimal(a / 64) for a in range(0, 1 + 90 * 64)),
+        "fake_param": (0,),  # single-value placeholder
+    }
 
     # Store the pre-computed tiles
     _tiles: Tuple[PackingTile, ...]
@@ -197,13 +217,20 @@ class Solver:
 
     def _precompute_tiles(self) -> tuple[PackingTile, ...]:
         """
-        Computes PackingTile for all configs.
+        Computes PackingTile for all parameter combinations.
         """
+        configs = self._build_configs()
         return _map(
             PackingTile.from_config,
-            self.CONFIGS,
+            configs,
             parallel=self.parallel,
             desc="Pre-computing tiles",
+        )
+
+    @classmethod
+    def _build_configs(cls) -> tuple[TileConfig, ...]:
+        return tuple(
+            TileConfig(**params) for params in expand_param_grid(cls.PARAM_GRID)
         )
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
