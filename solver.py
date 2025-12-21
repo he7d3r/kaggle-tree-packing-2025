@@ -107,6 +107,10 @@ class TileConfig:
     angle: Decimal
     fake_param: int  # placeholder for future extension
 
+    def build_n_tree(self) -> NTree:
+        tree = ChristmasTree(angle=self.angle)
+        return NTree.leaf(tree)
+
 
 @dataclass(frozen=True)
 class PackingTile:
@@ -125,18 +129,15 @@ class PackingTile:
         Stage 1: build a PackingTile from a TileConfig describing
         a single rotated tree.
         """
-        tree = ChristmasTree(angle=config.angle)
-        n_tree = NTree.leaf(tree)
-        return PackingTile._from_n_tree(n_tree, config)
+        n_tree = config.build_n_tree()
+        return PackingTile.from_n_tree(n_tree)
 
     @classmethod
-    def _from_n_tree(cls, n_tree: NTree, config: TileConfig) -> "PackingTile":
+    def from_n_tree(cls, n_tree: NTree) -> "PackingTile":
         """
         Computes dx, dy, and bounding rectangle for a tiling prototype/pattern.
         """
-        assert n_tree.tree is not None, (
-            "Composite NTrees are not supported yet."
-        )
+        assert n_tree.tree is not None, "Composite NTrees not supported yet."
 
         width, height = n_tree.sides
         geometry = unary_union(n_tree.polygons)
@@ -159,7 +160,7 @@ class PackingTile:
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
         return cls(
-            angle=config.angle,
+            angle=n_tree.tree.angle,
             width=width,
             height=height,
             dx=dx,
