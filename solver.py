@@ -150,7 +150,7 @@ def get_default_solver(parallel: bool = True) -> "Solver":
 @dataclass(frozen=True)
 class CandidatePlacement:
     grid: RotatedTreeGridParams
-    positions: list[tuple[int, int]]
+    positions: tuple[tuple[int, int], ...]
     side: Decimal
 
 
@@ -215,7 +215,7 @@ class Solver:
         self,
         tree_count: int,
         grid: RotatedTreeGridParams,
-    ) -> tuple[list[tuple[int, int]], Decimal]:
+    ) -> tuple[tuple[tuple[int, int], ...], Decimal]:
         positions = [(0, 0)]
         prev_row = 0
         prev_col = 0
@@ -255,4 +255,4 @@ class Solver:
             prev_row = row
             prev_col = col
         length = grid.bounding_square_side(max_col, max_row)
-        return positions, length
+        return tuple(positions), length
