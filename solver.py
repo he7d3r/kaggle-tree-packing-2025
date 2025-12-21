@@ -44,13 +44,15 @@ def _map(
 BISECTION_TOLERANCE = Decimal("0.000001")
 
 
-def _valid_h_offset(polygon: Polygon, offset: Decimal) -> bool:
+def _has_horizontal_collision(polygon: Polygon, offset: Decimal) -> bool:
     """Test if horizontal offset causes collision."""
     moved_x = GeometryAdapter.translate(polygon, dx=offset)
     return detect_overlap(moved_x, polygon)
 
 
-def _valid_v_offset(polygon: Polygon, dx: Decimal, offset: Decimal) -> bool:
+def _has_vertical_collision(
+    polygon: Polygon, dx: Decimal, offset: Decimal
+) -> bool:
     """Test vertical offset collision considering horizontal neighbors."""
     moved_y = GeometryAdapter.translate(polygon, dy=offset)
     if detect_overlap(moved_y, polygon):
@@ -88,8 +90,8 @@ def _bisect_offset(
 
 
 @dataclass(frozen=True)
-class RotatedTreeGridParams:
-    """Hashable/frozen class to store pre-computed grid and area parameters."""
+class PackingTile:
+    """Hashable/frozen class to store pre-computed tile and area parameters."""
 
     angle: Decimal
     width: Decimal
@@ -99,7 +101,7 @@ class RotatedTreeGridParams:
     bounding_rectangle_area: Decimal
 
     @classmethod
-    def from_angle(cls, angle: Decimal) -> "RotatedTreeGridParams":
+    def from_angle(cls, angle: Decimal) -> "PackingTile":
         """
         Computes dx, dy, and bounding_rectangle_area for a given angle.
         """
@@ -112,7 +114,7 @@ class RotatedTreeGridParams:
         dx = _bisect_offset(
             lower_bound=Decimal("0.0"),
             upper_bound=width,
-            collision_fn=partial(_valid_h_offset, polygon),
+            collision_fn=partial(_has_horizontal_collision, polygon),
             tolerance=BISECTION_TOLERANCE,
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
@@ -120,7 +122,7 @@ class RotatedTreeGridParams:
         dy = _bisect_offset(
             lower_bound=Decimal("0.0"),
             upper_bound=height,
-            collision_fn=partial(_valid_v_offset, polygon, dx),
+            collision_fn=partial(_has_vertical_collision, polygon, dx),
             tolerance=BISECTION_TOLERANCE,
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
@@ -148,8 +150,8 @@ def get_default_solver(parallel: bool = True) -> "Solver":
 
 
 @dataclass(frozen=True)
-class CandidatePlacement:
-    grid: RotatedTreeGridParams
+class Tiling:
+    tile: PackingTile
     positions: tuple[tuple[int, int], ...]
     side: Decimal
 
@@ -159,63 +161,57 @@ class Solver:
         Decimal(a / 64) for a in range(0, 1 + 90 * 64)
     )
 
-    # Store the pre-computed parameters
-    _GRID_PARAMS: Tuple[RotatedTreeGridParams, ...]
+    # Store the pre-computed tiles
+    _tiles: Tuple[PackingTile, ...]
 
     def __init__(self, parallel: bool = True):
         self.parallel = parallel
-        self._GRID_PARAMS = self._precompute_grid_params()
+        self._tiles = self._precompute_tiles()
 
-    def _precompute_grid_params(self) -> tuple[RotatedTreeGridParams, ...]:
+    def _precompute_tiles(self) -> tuple[PackingTile, ...]:
         """
-        Computes RotatedTreeGridParams for all angles.
+        Computes PackingTile for all angles.
         """
         return _map(
-            RotatedTreeGridParams.from_angle,
+            PackingTile.from_angle,
             self.ANGLES,
             parallel=self.parallel,
-            desc="Pre-computing params",
+            desc="Pre-computing tiles",
         )
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem for the specified n-tree sizes."""
         n_trees = _map(
-            self._solve_single,
+            self._solve_for_tree_count,
             problem_sizes,
             parallel=self.parallel,
             desc="Placing trees",
         )
         return Solution(n_trees=n_trees)
 
-    def _solve_single(self, tree_count: int) -> NTree:
+    def _solve_for_tree_count(self, tree_count: int) -> NTree:
         """
         Solves the placement for a single tree count, iterating over
-        the pre-computed grid parameters.
+        the pre-computed tile parameters.
         """
-        best: CandidatePlacement | None = None
+        best: Tiling | None = None
 
-        for grid in self._GRID_PARAMS:
-            positions, side = self._solve_single_params(tree_count, grid)
-            candidate = CandidatePlacement(grid, positions, side)
-
+        for tile in self._tiles:
+            candidate = self._construct_tiling(tree_count, tile)
             if best is None or candidate.side < best.side:
                 best = candidate
 
         assert best is not None
 
         coords = tuple(
-            best.grid.coordinates(col, row) for col, row in best.positions
+            best.tile.coordinates(col, row) for col, row in best.positions
         )
         trees = tuple(
-            ChristmasTree(x, y, angle=best.grid.angle) for x, y in coords
+            ChristmasTree(x, y, angle=best.tile.angle) for x, y in coords
         )
         return NTree.from_trees(trees)
 
-    def _solve_single_params(
-        self,
-        tree_count: int,
-        grid: RotatedTreeGridParams,
-    ) -> tuple[tuple[tuple[int, int], ...], Decimal]:
+    def _construct_tiling(self, tree_count: int, tile: PackingTile) -> Tiling:
         positions = [(0, 0)]
         prev_row = 0
         prev_col = 0
@@ -225,10 +221,10 @@ class Solver:
             if prev_row == max_row and prev_col == max_col:
                 # The previous tree was at the corner of a rectangle.
                 # Start a new row or new column (whichever is best)
-                side_adding_col = grid.bounding_square_side(
+                side_adding_col = tile.bounding_square_side(
                     max_col + 1, max_row
                 )
-                side_adding_row = grid.bounding_square_side(
+                side_adding_row = tile.bounding_square_side(
                     max_col, max_row + 1
                 )
                 if side_adding_col <= side_adding_row:
@@ -254,5 +250,5 @@ class Solver:
             positions.append((col, row))
             prev_row = row
             prev_col = col
-        length = grid.bounding_square_side(max_col, max_row)
-        return tuple(positions), length
+        length = tile.bounding_square_side(max_col, max_row)
+        return Tiling(tile, tuple(positions), length)
