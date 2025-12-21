@@ -93,6 +93,17 @@ def _bisect_offset(
 
 
 @dataclass(frozen=True)
+class TileConfig:
+    """
+    Immutable configuration describing a tiling prototype.
+    angle: Decimal
+        Rotation angle (in degrees) of the only tree in the Tile pattern.
+    """
+
+    angle: Decimal
+
+
+@dataclass(frozen=True)
 class PackingTile:
     """Hashable/frozen class to store pre-computed tile and area parameters."""
 
@@ -104,33 +115,33 @@ class PackingTile:
     bounding_rectangle_area: Decimal
 
     @staticmethod
-    def from_angle(angle: Decimal) -> "PackingTile":
+    def from_config(config: TileConfig) -> "PackingTile":
         """
-        Temporary helper: build a PackingTile from a single rotated tree.
+        Stage 1: build a PackingTile from a TileConfig describing
+        a single rotated tree.
         """
-        tree = ChristmasTree(angle=angle)
+        tree = ChristmasTree(angle=config.angle)
         n_tree = NTree.leaf(tree)
-        return PackingTile._from_n_tree(n_tree)
+        return PackingTile._from_n_tree(n_tree, config)
 
     @classmethod
-    def _from_n_tree(cls, n_tree: NTree) -> "PackingTile":
+    def _from_n_tree(cls, n_tree: NTree, config: TileConfig) -> "PackingTile":
         """
-        Computes dx, dy, and bounding_rectangle_area for a given leaf NTree.
+        Computes dx, dy, and bounding rectangle for a tiling prototype/pattern.
         """
         assert n_tree.tree is not None, (
-            "NTrees with multiple trees are not supported (for now)."
+            "Composite NTrees are not supported yet."
         )
-        angle = n_tree.tree.angle
 
         width, height = n_tree.sides
-        polygon = unary_union(n_tree.polygons)
+        geometry = unary_union(n_tree.polygons)
         bounding_rectangle_area = width * height
 
         # Find minimal horizontal offset (dx)
         dx = _bisect_offset(
             lower_bound=Decimal("0.0"),
             upper_bound=width,
-            collision_fn=partial(_has_horizontal_collision, polygon),
+            collision_fn=partial(_has_horizontal_collision, geometry),
             tolerance=BISECTION_TOLERANCE,
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
@@ -138,12 +149,12 @@ class PackingTile:
         dy = _bisect_offset(
             lower_bound=Decimal("0.0"),
             upper_bound=height,
-            collision_fn=partial(_has_vertical_collision, polygon, dx),
+            collision_fn=partial(_has_vertical_collision, geometry, dx),
             tolerance=BISECTION_TOLERANCE,
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
         return cls(
-            angle=angle,
+            angle=config.angle,
             width=width,
             height=height,
             dx=dx,
@@ -173,8 +184,8 @@ class Tiling:
 
 
 class Solver:
-    ANGLES: ClassVar[Tuple[Decimal, ...]] = tuple(
-        Decimal(a / 64) for a in range(0, 1 + 90 * 64)
+    CONFIGS: ClassVar[tuple[TileConfig, ...]] = tuple(
+        TileConfig(angle=Decimal(a / 64)) for a in range(0, 1 + 90 * 64)
     )
 
     # Store the pre-computed tiles
@@ -186,11 +197,11 @@ class Solver:
 
     def _precompute_tiles(self) -> tuple[PackingTile, ...]:
         """
-        Computes PackingTile for all angles.
+        Computes PackingTile for all configs.
         """
         return _map(
-            PackingTile.from_angle,
-            self.ANGLES,
+            PackingTile.from_config,
+            self.CONFIGS,
             parallel=self.parallel,
             desc="Pre-computing tiles",
         )
