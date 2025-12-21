@@ -59,7 +59,7 @@ class ParticipantVisibleError(Exception):
     pass
 
 
-def detect_overlap(a: Polygon, b: Polygon) -> bool:
+def detect_overlap(a: BaseGeometry, b: BaseGeometry) -> bool:
     """Check for intersection without touching."""
     return a.intersects(b) and not a.touches(b)
 

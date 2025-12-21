@@ -12,7 +12,8 @@ from typing import (
     TypeVar,
 )
 
-from shapely.geometry import Polygon
+from shapely import unary_union
+from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
 from christmas_tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
@@ -46,26 +47,26 @@ def _map(
 BISECTION_TOLERANCE = Decimal("0.000001")
 
 
-def _has_horizontal_collision(polygon: Polygon, offset: Decimal) -> bool:
+def _has_horizontal_collision(geometry: BaseGeometry, offset: Decimal) -> bool:
     """Test if horizontal offset causes collision."""
-    moved_x = GeometryAdapter.translate(polygon, dx=offset)
-    return detect_overlap(moved_x, polygon)
+    moved_x = GeometryAdapter.translate(geometry, dx=offset)
+    return detect_overlap(moved_x, geometry)
 
 
 def _has_vertical_collision(
-    polygon: Polygon, dx: Decimal, offset: Decimal
+    geometry: BaseGeometry, dx: Decimal, offset: Decimal
 ) -> bool:
     """Test vertical offset collision considering horizontal neighbors."""
-    moved_y = GeometryAdapter.translate(polygon, dy=offset)
-    if detect_overlap(moved_y, polygon):
+    moved_y = GeometryAdapter.translate(geometry, dy=offset)
+    if detect_overlap(moved_y, geometry):
         return True
 
-    moved_x = GeometryAdapter.translate(polygon, dx=dx)
+    moved_x = GeometryAdapter.translate(geometry, dx=dx)
     if detect_overlap(moved_x, moved_y):
         return True
 
-    moved_xy = GeometryAdapter.translate(polygon, dx=dx, dy=offset)
-    if detect_overlap(moved_xy, polygon):
+    moved_xy = GeometryAdapter.translate(geometry, dx=dx, dy=offset)
+    if detect_overlap(moved_xy, geometry):
         return True
 
     return False
@@ -102,15 +103,28 @@ class PackingTile:
     dy: Decimal
     bounding_rectangle_area: Decimal
 
-    @classmethod
-    def from_angle(cls, angle: Decimal) -> "PackingTile":
+    @staticmethod
+    def from_angle(angle: Decimal) -> "PackingTile":
         """
-        Computes dx, dy, and bounding_rectangle_area for a given angle.
+        Temporary helper: build a PackingTile from a single rotated tree.
         """
         tree = ChristmasTree(angle=angle)
-        width, height = tree.sides
-        polygon = tree.polygon
-        bounding_rectangle_area = tree.bounding_rectangle_area
+        n_tree = NTree.leaf(tree)
+        return PackingTile._from_n_tree(n_tree)
+
+    @classmethod
+    def _from_n_tree(cls, n_tree: NTree) -> "PackingTile":
+        """
+        Computes dx, dy, and bounding_rectangle_area for a given leaf NTree.
+        """
+        assert n_tree.tree is not None, (
+            "NTrees with multiple trees are not supported (for now)."
+        )
+        angle = n_tree.tree.angle
+
+        width, height = n_tree.sides
+        polygon = unary_union(n_tree.polygons)
+        bounding_rectangle_area = width * height
 
         # Find minimal horizontal offset (dx)
         dx = _bisect_offset(
