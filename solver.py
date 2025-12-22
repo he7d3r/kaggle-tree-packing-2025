@@ -155,7 +155,7 @@ class TileMetrics:
             height=height,
             dx=dx,
             dy=dy,
-            bounding_rectangle_area=width * height,
+            bounding_rectangle_area=n_tree.bounding_rectangle_area,
         )
 
     def coordinates(self, col: int, row: int) -> tuple[Decimal, Decimal]:

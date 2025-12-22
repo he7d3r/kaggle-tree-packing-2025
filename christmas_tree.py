@@ -226,6 +226,10 @@ class NTree:
         return max(self.sides)
 
     @cached_property
+    def bounding_rectangle_area(self) -> Decimal:
+        return Decimal(math.prod(self.sides))
+
+    @cached_property
     def score(self) -> Decimal:
         return (self.side_length**2) / Decimal(self.tree_count)
 
