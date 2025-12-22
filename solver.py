@@ -98,23 +98,33 @@ def _bisect_offset(
 
 
 @dataclass(frozen=True)
-class TileConfig:
-    """
-    Immutable configuration describing a tiling prototype.
-    angle: Decimal
-        Rotation angle (in degrees) of the only tree in the Tile pattern.
-    fake_param: int
-        Placeholder for future parameters.
-    """
+class TreeSpec:
+    """Immutable specification of a single tree in a Tile pattern."""
 
-    angle: Decimal
-    fake_param: int
+    angle: Decimal  # degrees
+
+
+@dataclass(frozen=True)
+class RelativeTransform:
+    """Immutable relative transformation between two trees in a Tile pattern."""
+
+    from_idx: int
+    to_idx: int
+    direction: Decimal  # degrees
+
+
+@dataclass(frozen=True)
+class TileConfig:
+    """Immutable tile configuration consisting of tree specs and relations."""
+
+    trees: tuple[TreeSpec, ...]
+    relations: tuple[RelativeTransform, ...]
 
     def build_n_tree(self) -> NTree:
-        return NTree.leaf(ChristmasTree(angle=self.angle))
+        return NTree.leaf(ChristmasTree(angle=self.trees[0].angle))
 
     def build_tree(self, x: Decimal, y: Decimal) -> ChristmasTree:
-        return ChristmasTree(x, y, angle=self.angle)
+        return ChristmasTree(x, y, angle=self.trees[0].angle)
 
 
 @dataclass(frozen=True)
@@ -216,8 +226,10 @@ def get_default_solver(parallel: bool = True) -> "Solver":
 
 class Solver:
     PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
-        "angle": tuple(Decimal(a / 64) for a in range(0, 1 + 90 * 64)),
-        "fake_param": (0,),  # placeholder
+        "angle_1": tuple(Decimal(a / 64) for a in range(0, 1 + 90 * 64)),
+        "angle_2": (Decimal(0),),  # fixed for now
+        # angle from tree1 to tree2
+        "direction_12": (Decimal(0),),  # fixed for now
     }
 
     _patterns: tuple[TilePattern, ...]
@@ -237,9 +249,12 @@ class Solver:
 
     @classmethod
     def _build_configs(cls) -> tuple[TileConfig, ...]:
-        return tuple(
-            TileConfig(**params) for params in expand_param_grid(cls.PARAM_GRID)
-        )
+        configs = []
+        for params in expand_param_grid(cls.PARAM_GRID):
+            trees = (TreeSpec(angle=params["angle_1"]),)
+            relations = ()
+            configs.append(TileConfig(trees=trees, relations=relations))
+        return tuple(configs)
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """Solves the tree placement problem for the specified n-tree sizes."""
