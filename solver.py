@@ -117,14 +117,14 @@ class RelativeTransform:
 class TileConfig:
     """Immutable tile configuration consisting of tree specs and relations."""
 
-    trees: tuple[TreeSpec, ...]
+    tree_specs: tuple[TreeSpec, ...]
     relations: tuple[RelativeTransform, ...]
 
-    def build_n_tree(self) -> NTree:
-        return NTree.leaf(ChristmasTree(angle=self.trees[0].angle))
+    def build_base_n_tree(self) -> NTree:
+        return NTree.leaf(ChristmasTree(angle=self.tree_specs[0].angle))
 
-    def build_tree(self, x: Decimal, y: Decimal) -> ChristmasTree:
-        return ChristmasTree(x, y, angle=self.trees[0].angle)
+    def build_tree_at(self, x: Decimal, y: Decimal) -> ChristmasTree:
+        return ChristmasTree(x, y, angle=self.tree_specs[0].angle)
 
 
 @dataclass(frozen=True)
@@ -183,13 +183,13 @@ class TilePattern:
 
     @classmethod
     def from_config(cls, config: TileConfig) -> "TilePattern":
-        n_tree = config.build_n_tree()
-        metrics = TileMetrics.from_n_tree(n_tree)
+        base_n_tree = config.build_base_n_tree()
+        metrics = TileMetrics.from_n_tree(base_n_tree)
         return cls(config=config, metrics=metrics)
 
     def build_n_tree(self, positions: Iterable[tuple[int, int]]) -> NTree:
         trees = tuple(
-            self.config.build_tree(*self.metrics.coordinates(col, row))
+            self.config.build_tree_at(*self.metrics.coordinates(col, row))
             for col, row in positions
         )
         return NTree.from_trees(trees)
@@ -251,9 +251,9 @@ class Solver:
     def _build_configs(cls) -> tuple[TileConfig, ...]:
         configs = []
         for params in expand_param_grid(cls.PARAM_GRID):
-            trees = (TreeSpec(angle=params["angle_1"]),)
+            specs = (TreeSpec(angle=params["angle_1"]),)
             relations = ()
-            configs.append(TileConfig(trees=trees, relations=relations))
+            configs.append(TileConfig(tree_specs=specs, relations=relations))
         return tuple(configs)
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:

@@ -242,8 +242,8 @@ class NTree:
         return NTree(tree=tree)
 
     @staticmethod
-    def combine(*trees: "NTree") -> "NTree":
-        return NTree(n_trees=trees)
+    def combine(*n_trees: "NTree") -> "NTree":
+        return NTree(n_trees=n_trees)
 
     @staticmethod
     def from_dataframe(df: pd.DataFrame) -> "NTree":
