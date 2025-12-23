@@ -1,3 +1,4 @@
+import math
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
@@ -119,6 +120,64 @@ class TileConfig:
 
     tree_specs: tuple[TreeSpec, ...]
     relations: tuple[RelativeTransform, ...]
+
+    def build_composite_n_tree(self) -> NTree:
+        """
+        Build a composite NTree using TreeSpec and RelativeTransform.
+
+        - Tree 0 is anchored at the origin.
+        - Other trees are positioned relative to it using bisection
+        along a direction ray.
+        """
+
+        if not self.tree_specs:
+            raise ValueError("TileConfig must contain at least one TreeSpec")
+
+        # Base tree at the origin
+        base_tree = ChristmasTree(
+            center_x=Decimal(0),
+            center_y=Decimal(0),
+            angle=self.tree_specs[0].angle,
+        )
+
+        trees = [base_tree]
+
+        for rel in self.relations:
+            ref_tree = trees[rel.from_idx]
+
+            # Create target tree at origin (rotation only)
+            target = ChristmasTree(angle=self.tree_specs[rel.to_idx].angle)
+
+            # --- direction unit vector ---
+            theta = float(rel.direction * Decimal(math.pi) / Decimal(180))
+            ux = Decimal(math.cos(theta))
+            uy = Decimal(math.sin(theta))
+
+            ref_geom = ref_tree.polygon
+            tgt_geom = target.polygon
+
+            def collision_fn(offset: Decimal) -> bool:
+                moved = GeometryAdapter.translate(
+                    tgt_geom, dx=offset * ux, dy=offset * uy
+                )
+                return detect_overlap(ref_geom, moved)
+
+            offset = _bisect_offset(
+                lower_bound=Decimal("0"),
+                upper_bound=ref_tree.half_diagonal + target.half_diagonal,
+                collision_fn=collision_fn,
+                tolerance=BISECTION_TOLERANCE,
+            )
+
+            trees.append(
+                ChristmasTree(
+                    center_x=ref_tree.center_x + offset * ux,
+                    center_y=ref_tree.center_y + offset * uy,
+                    angle=target.angle,
+                )
+            )
+
+        return NTree.from_trees(tuple(trees))
 
     def build_base_n_tree(self) -> NTree:
         return NTree.leaf(ChristmasTree(angle=self.tree_specs[0].angle))
