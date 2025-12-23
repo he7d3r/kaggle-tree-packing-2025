@@ -146,8 +146,17 @@ class ChristmasTree:
         return maxx - minx, maxy - miny
 
     @cached_property
+    def side_length(self) -> Decimal:
+        return max(self.sides)
+
+    @cached_property
     def bounding_rectangle_area(self) -> Decimal:
         return Decimal(math.prod(self.sides))
+
+    @cached_property
+    def half_diagonal(self) -> Decimal:
+        w, h = self.sides
+        return (w * w + h * h).sqrt() / 2
 
 
 @dataclass(frozen=True)
