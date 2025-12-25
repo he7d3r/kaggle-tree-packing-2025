@@ -222,7 +222,7 @@ class NTree:
     @cached_property
     def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]:
         if self.tree is not None:
-            return GeometryAdapter.bounds(self.tree.polygon)
+            return self.tree.bounds
         return GeometryAdapter.bounds(unary_union(self.polygons))
 
     @cached_property
