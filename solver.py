@@ -296,10 +296,10 @@ def get_default_solver(parallel: bool = True) -> "Solver":
 
 class Solver:
     PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
-        "angle_1": tuple(Decimal(a) for a in range(0, 91, 10)),
-        "angle_2": tuple(Decimal(a) for a in range(0, 181, 10)),
+        "angle_1": tuple(Decimal(a) for a in range(0, 91, 5)),
+        "angle_2": tuple(Decimal(a) for a in range(0, 181, 5)),
         # angle from tree1 to tree2
-        "direction_12": tuple(Decimal(a) for a in range(0, 91, 10)),
+        "direction_12": tuple(Decimal(a) for a in range(0, 91, 5)),
     }
 
     _patterns: tuple[TilePattern, ...]
