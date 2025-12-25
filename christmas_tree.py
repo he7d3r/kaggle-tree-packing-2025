@@ -297,3 +297,6 @@ class NTree:
         if len(leaves) == 1:
             return leaves[0]
         return NTree.combine(*leaves)
+
+    def take_first(self, n: int) -> "NTree":
+        return NTree.from_trees(self.trees[:n])

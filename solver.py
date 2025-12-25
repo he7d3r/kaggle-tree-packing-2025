@@ -48,7 +48,7 @@ def _map(
         return tuple(tqdm(executor.map(fn, items), total=len(items), desc=desc))
 
 
-BISECTION_TOLERANCE = Decimal("0.000001")
+BISECTION_TOLERANCE = Decimal("0.000005")
 
 
 def _has_horizontal_collision(geometry: BaseGeometry, offset: Decimal) -> bool:
@@ -153,18 +153,19 @@ class TileConfig:
             ux = Decimal(math.cos(theta))
             uy = Decimal(math.sin(theta))
 
-            ref_geom = ref_tree.polygon
             tgt_geom = target.polygon
+
+            placed_geometries = [t.polygon for t in trees]
 
             def collision_fn(offset: Decimal) -> bool:
                 moved = GeometryAdapter.translate(
                     tgt_geom, dx=offset * ux, dy=offset * uy
                 )
-                return detect_overlap(ref_geom, moved)
+                return any(detect_overlap(moved, g) for g in placed_geometries)
 
             offset = _bisect_offset(
                 lower_bound=Decimal("0"),
-                upper_bound=ref_tree.half_diagonal + target.half_diagonal,
+                upper_bound=max(ref_tree.side_length, target.side_length) * 2,
                 collision_fn=collision_fn,
                 tolerance=BISECTION_TOLERANCE,
             )
@@ -178,9 +179,6 @@ class TileConfig:
             )
 
         return NTree.from_trees(tuple(trees))
-
-    def build_base_n_tree(self) -> NTree:
-        return NTree.leaf(ChristmasTree(angle=self.tree_specs[0].angle))
 
     def build_tree_at(self, x: Decimal, y: Decimal) -> ChristmasTree:
         return ChristmasTree(x, y, angle=self.tree_specs[0].angle)
@@ -198,8 +196,6 @@ class TileMetrics:
 
     @classmethod
     def from_n_tree(cls, n_tree: NTree) -> "TileMetrics":
-        assert n_tree.tree is not None, "Composite NTrees not supported yet."
-
         width, height = n_tree.sides
         geometry = unary_union(n_tree.polygons)
 
@@ -242,16 +238,31 @@ class TilePattern:
 
     @classmethod
     def from_config(cls, config: TileConfig) -> "TilePattern":
-        base_n_tree = config.build_base_n_tree()
+        base_n_tree = config.build_composite_n_tree()
         metrics = TileMetrics.from_n_tree(base_n_tree)
         return cls(config=config, metrics=metrics)
 
     def build_n_tree(self, positions: Iterable[tuple[int, int]]) -> NTree:
-        trees = tuple(
-            self.config.build_tree_at(*self.metrics.coordinates(col, row))
-            for col, row in positions
-        )
-        return NTree.from_trees(trees)
+        """
+        Build a global NTree by placing translated copies of the composite
+        tile NTree at each grid position.
+        """
+        base_tile = self.config.build_composite_n_tree()
+        result_trees: list[ChristmasTree] = []
+
+        for col, row in positions:
+            dx, dy = self.metrics.coordinates(col, row)
+
+            for tree in base_tile.trees:
+                result_trees.append(
+                    ChristmasTree(
+                        center_x=tree.center_x + dx,
+                        center_y=tree.center_y + dy,
+                        angle=tree.angle,
+                    )
+                )
+
+        return NTree.from_trees(tuple(result_trees))
 
 
 @dataclass(frozen=True)
@@ -285,10 +296,10 @@ def get_default_solver(parallel: bool = True) -> "Solver":
 
 class Solver:
     PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
-        "angle_1": tuple(Decimal(a / 64) for a in range(0, 1 + 90 * 64)),
-        "angle_2": (Decimal(0),),  # fixed for now
+        "angle_1": tuple(Decimal(a) for a in range(0, 91, 10)),
+        "angle_2": tuple(Decimal(a) for a in range(0, 181, 10)),
         # angle from tree1 to tree2
-        "direction_12": (Decimal(0),),  # fixed for now
+        "direction_12": tuple(Decimal(a) for a in range(0, 91, 10)),
     }
 
     _patterns: tuple[TilePattern, ...]
@@ -310,8 +321,15 @@ class Solver:
     def _build_configs(cls) -> tuple[TileConfig, ...]:
         configs = []
         for params in expand_param_grid(cls.PARAM_GRID):
-            specs = (TreeSpec(angle=params["angle_1"]),)
-            relations = ()
+            specs = (
+                TreeSpec(angle=params["angle_1"]),
+                TreeSpec(angle=params["angle_2"]),
+            )
+            relations = (
+                RelativeTransform(
+                    from_idx=0, to_idx=1, direction=params["direction_12"]
+                ),
+            )
             configs.append(TileConfig(tree_specs=specs, relations=relations))
         return tuple(configs)
 
@@ -338,7 +356,7 @@ class Solver:
                 best = candidate
 
         assert best is not None
-        return best.pattern.build_n_tree(best.positions)
+        return best.pattern.build_n_tree(best.positions).take_first(tree_count)
 
     def _construct_tiling(
         self, tree_count: int, pattern: TilePattern
@@ -350,7 +368,8 @@ class Solver:
         prev_col = 0
         max_row = 0
         max_col = 0
-        while len(positions) < tree_count:
+        trees_per_tile = len(pattern.config.tree_specs)
+        while len(positions) * trees_per_tile < tree_count:
             if prev_row == max_row and prev_col == max_col:
                 # The previous tree was at the corner of a rectangle.
                 # Start a new row or new column (whichever is best)
