@@ -158,6 +158,14 @@ class ChristmasTree:
         w, h = self.sides
         return (w * w + h * h).sqrt() / 2
 
+    def to_string(self, decimals: int = 1) -> str:
+        fmt = f".{decimals}f"
+        return (
+            f"ChristmasTree(center_x={format(float(self.center_x), fmt)}, "
+            f"center_y={format(float(self.center_y), fmt)}, "
+            f"angle={format(float(self.angle), fmt)})"
+        )
+
 
 @dataclass(frozen=True)
 class NTree:
@@ -195,9 +203,13 @@ class NTree:
                 if i >= j:
                     continue
                 if detect_overlap(poly, polygons[j]):
+                    trees = "\n".join(
+                        tree.to_string(decimals=2) for tree in self.trees
+                    )
                     raise ParticipantVisibleError(
                         "Overlapping trees in NTree with "
-                        f"{self.tree_count} trees"
+                        f"{self.tree_count} trees.\n"
+                        f"All trees:\n{trees}"
                     )
 
     @cached_property
