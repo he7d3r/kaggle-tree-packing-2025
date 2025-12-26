@@ -292,46 +292,6 @@ class BruteForceEvaluator(PatternEvaluator):
         return best
 
 
-class OptunaEvaluator(PatternEvaluator):
-    def __init__(self, *, n_trials: int, seed: int):
-        self.n_trials = n_trials
-        self.seed = seed
-
-    def evaluate(
-        self,
-        tree_count: int,
-        patterns: Sequence[TilePattern],
-        construct: Callable[[int, TilePattern], Tiling],
-    ) -> Tiling:
-        best: Tiling | None = None
-
-        def objective(trial: optuna.Trial) -> float:
-            nonlocal best
-
-            pid = trial.suggest_int("pattern_id", 0, len(patterns) - 1)
-            pattern = patterns[pid]
-            tiling = construct(tree_count, pattern)
-            value = float(tiling.side)
-
-            if best is None or tiling.side < best.side:
-                best = tiling
-
-            return value
-
-        study = optuna.create_study(
-            sampler=optuna.samplers.TPESampler(seed=self.seed),
-            direction="minimize",
-        )
-
-        study.optimize(
-            objective, n_trials=self.n_trials, show_progress_bar=False
-        )
-
-        assert best is not None
-        return best
-        # NOTE: flat index-based Optuna (Stage 3)
-
-
 class OptunaAxisEvaluator(PatternEvaluator):
     """
     Optuna evaluator that exposes PARAM_GRID axes directly,
@@ -431,24 +391,28 @@ def expand_param_grid(
         yield dict(zip(keys, combo))
 
 
-def get_default_solver(parallel: bool = True) -> "Solver":
-    configs, patterns = Solver.precompute_patterns(parallel=parallel)
-    evaluator = BruteForceEvaluator()
-    return Solver(
-        configs=configs,
-        patterns=patterns,
-        evaluator=evaluator,
-        parallel=parallel,
-    )
-
-
-def get_optuna_solver(
-    *, parallel: bool = True, n_trials: int, seed: int
+def get_default_solver(
+    *, strategy: str = "brute", parallel: bool = True, seed: int = 42
 ) -> "Solver":
+    """
+    Create solver with specified strategy.
+
+    Args:
+        strategy: "brute" (default) or "optuna"
+        parallel: Enable multiprocessing
+        seed: Random seed for Optuna
+    """
     configs, patterns = Solver.precompute_patterns(parallel=parallel)
-    evaluator = OptunaAxisEvaluator(
-        configs=configs, patterns=patterns, n_trials=n_trials, seed=seed
-    )
+
+    if strategy == "brute":
+        evaluator = BruteForceEvaluator()
+    elif strategy == "optuna":
+        evaluator = OptunaAxisEvaluator(
+            configs=configs, patterns=patterns, n_trials=300, seed=seed
+        )
+    else:
+        raise ValueError(f"Unknown strategy: {strategy}")
+
     return Solver(
         configs=configs,
         patterns=patterns,
@@ -476,12 +440,7 @@ class Solver:
         self.parallel = parallel
         self._patterns = tuple(patterns)
         self._configs: tuple[TileConfig, ...] = tuple(configs)
-        self._pattern_ids = range(len(self._patterns))
         self._evaluator = evaluator
-
-    @property
-    def pattern_ids(self) -> range:
-        return self._pattern_ids
 
     @classmethod
     def precompute_patterns(
@@ -592,7 +551,6 @@ def benchmark_single_n(
     optuna_solver = Solver(
         configs=configs,
         patterns=patterns,
-        # evaluator=OptunaEvaluator(n_trials=400, seed=42),
         evaluator=OptunaAxisEvaluator(
             configs=configs, patterns=patterns, n_trials=400, seed=42
         ),
