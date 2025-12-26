@@ -272,6 +272,34 @@ class Tiling:
     side: Decimal
 
 
+class PatternEvaluator:
+    """Strategy interface for selecting the best tiling among patterns."""
+
+    def evaluate(
+        self,
+        tree_count: int,
+        patterns: Sequence[TilePattern],
+        construct: Callable[[int, TilePattern], Tiling],
+    ) -> Tiling: ...
+
+
+class BruteForceEvaluator(PatternEvaluator):
+    def evaluate(
+        self,
+        tree_count: int,
+        patterns: Sequence[TilePattern],
+        construct: Callable[[int, TilePattern], Tiling],
+    ) -> Tiling:
+        best: Tiling | None = None
+        for pattern in patterns:
+            candidate = construct(tree_count, pattern)
+            if best is None or candidate.side < best.side:
+                best = candidate
+
+        assert best is not None
+        return best
+
+
 # ---------------------------------------------------------------------
 # Solver
 # ---------------------------------------------------------------------
@@ -291,7 +319,9 @@ def expand_param_grid(
 
 
 def get_default_solver(parallel: bool = True) -> "Solver":
-    return Solver(parallel=parallel)
+    patterns = Solver.precompute_patterns(parallel=parallel)
+    evaluator = BruteForceEvaluator()
+    return Solver(patterns=patterns, evaluator=evaluator, parallel=parallel)
 
 
 class Solver:
@@ -302,24 +332,32 @@ class Solver:
         "direction_12": tuple(Decimal(a) for a in range(0, 91, 5)),
     }
 
-    _patterns: tuple[TilePattern, ...]
-
-    def __init__(self, parallel: bool = True):
+    def __init__(
+        self,
+        *,
+        patterns: Sequence[TilePattern],
+        evaluator: PatternEvaluator,
+        parallel: bool = True,
+    ):
         self.parallel = parallel
-        self._patterns = self._precompute_patterns()
+        self._patterns: tuple[TilePattern, ...] = tuple(patterns)
+        self._evaluator = evaluator
 
-    def _precompute_patterns(self) -> tuple[TilePattern, ...]:
-        configs = self._build_configs()
+    @classmethod
+    def precompute_patterns(
+        cls, *, parallel: bool = True
+    ) -> tuple[TilePattern, ...]:
+        configs = cls._build_configs()
         return _map(
             TilePattern.from_config,
             configs,
-            parallel=self.parallel,
+            parallel=parallel,
             desc="Pre-computing tile patterns",
         )
 
     @classmethod
     def _build_configs(cls) -> tuple[TileConfig, ...]:
-        configs = []
+        configs: list[TileConfig] = []
         for params in expand_param_grid(cls.PARAM_GRID):
             specs = (
                 TreeSpec(angle=params["angle_1"]),
@@ -345,17 +383,15 @@ class Solver:
 
     def _solve_for_tree_count(self, tree_count: int) -> NTree:
         """
-        Solves the placement for a single tree count, iterating over
-        the pre-computed tile parameters.
+        Solves the placement for a single tree count using the configured
+        pattern evaluation strategy.
         """
-        best: Tiling | None = None
+        best = self._evaluator.evaluate(
+            tree_count=tree_count,
+            patterns=self._patterns,
+            construct=self._construct_tiling,
+        )
 
-        for pattern in self._patterns:
-            candidate = self._construct_tiling(tree_count, pattern)
-            if best is None or candidate.side < best.side:
-                best = candidate
-
-        assert best is not None
         return best.pattern.build_n_tree(best.positions).take_first(tree_count)
 
     def _construct_tiling(
