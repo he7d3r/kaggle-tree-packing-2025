@@ -294,8 +294,8 @@ class BruteForceEvaluator(PatternEvaluator):
 
 class OptunaAxisEvaluator(PatternEvaluator):
     """
-    Optuna evaluator that exposes PARAM_GRID axes directly,
-    while still indexing into precomputed TilePatterns.
+    Optuna evaluator that samples PARAM_GRID axes exactly,
+    without assuming uniform spacing or using categoricals.
     """
 
     def __init__(
@@ -308,32 +308,35 @@ class OptunaAxisEvaluator(PatternEvaluator):
     ):
         self.n_trials = n_trials
         self.seed = seed
-        self._patterns = patterns
 
-        # Build stable lookup: (angle_1, angle_2, direction) -> pattern_id
-        self._angle_1_vals = sorted(
-            {cfg.tree_specs[0].angle for cfg in configs}
-        )
-        self._angle_2_vals = sorted(
-            {cfg.tree_specs[1].angle for cfg in configs}
-        )
-        self._direction_vals = sorted(
-            {cfg.relations[0].direction for cfg in configs}
-        )
+        # Stable lookup: (angle_1, angle_2, direction) -> TilePattern
+        self._pattern_by_params: dict[
+            tuple[Decimal, Decimal, Decimal], TilePattern
+        ] = {}
 
-        self._param_to_pid: dict[tuple[int, int, int], int] = {
-            (
-                self._angle_1_vals.index(cfg.tree_specs[0].angle),
-                self._angle_2_vals.index(cfg.tree_specs[1].angle),
-                self._direction_vals.index(cfg.relations[0].direction),
-            ): pid
-            for pid, cfg in enumerate(configs)
-        }
+        for cfg, pattern in zip(configs, patterns):
+            key = (
+                cfg.tree_specs[0].angle,
+                cfg.tree_specs[1].angle,
+                cfg.relations[0].direction,
+            )
+            self._pattern_by_params[key] = pattern
+
+        # Axis domains (ordered, deterministic)
+        self._angle_1_vals = tuple(
+            sorted({k[0] for k in self._pattern_by_params})
+        )
+        self._angle_2_vals = tuple(
+            sorted({k[1] for k in self._pattern_by_params})
+        )
+        self._direction_vals = tuple(
+            sorted({k[2] for k in self._pattern_by_params})
+        )
 
     def evaluate(
         self,
         tree_count: int,
-        patterns: Sequence[TilePattern],
+        patterns: Sequence[TilePattern],  # kept for interface compatibility
         construct: Callable[[int, TilePattern], Tiling],
     ) -> Tiling:
         best: Tiling | None = None
@@ -351,8 +354,12 @@ class OptunaAxisEvaluator(PatternEvaluator):
                 "direction_12_idx", 0, len(self._direction_vals) - 1
             )
 
-            pid = self._param_to_pid[(i1, i2, i3)]
-            pattern = self._patterns[pid]
+            angle_1 = self._angle_1_vals[i1]
+            angle_2 = self._angle_2_vals[i2]
+            direction = self._direction_vals[i3]
+
+            pattern = self._pattern_by_params[(angle_1, angle_2, direction)]
+
             tiling = construct(tree_count, pattern)
 
             if best is None or tiling.side < best.side:
