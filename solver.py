@@ -341,7 +341,12 @@ class Solver:
     ):
         self.parallel = parallel
         self._patterns: tuple[TilePattern, ...] = tuple(patterns)
+        self._pattern_ids: range = range(len(self._patterns))
         self._evaluator = evaluator
+
+    @property
+    def pattern_ids(self) -> range:
+        return self._pattern_ids
 
     @classmethod
     def precompute_patterns(
