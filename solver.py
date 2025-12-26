@@ -340,6 +340,88 @@ class OptunaEvaluator(PatternEvaluator):
 
         assert best is not None
         return best
+        # NOTE: flat index-based Optuna (Stage 3)
+
+
+class OptunaAxisEvaluator(PatternEvaluator):
+    """
+    Optuna evaluator that exposes PARAM_GRID axes directly,
+    while still indexing into precomputed TilePatterns.
+    """
+
+    def __init__(
+        self,
+        *,
+        configs: Sequence[TileConfig],
+        patterns: Sequence[TilePattern],
+        n_trials: int,
+        seed: int,
+    ):
+        self.n_trials = n_trials
+        self.seed = seed
+        self._patterns = patterns
+
+        # Build stable lookup: (angle_1, angle_2, direction) -> pattern_id
+        self._angle_1_vals = sorted(
+            {cfg.tree_specs[0].angle for cfg in configs}
+        )
+        self._angle_2_vals = sorted(
+            {cfg.tree_specs[1].angle for cfg in configs}
+        )
+        self._direction_vals = sorted(
+            {cfg.relations[0].direction for cfg in configs}
+        )
+
+        self._param_to_pid: dict[tuple[int, int, int], int] = {
+            (
+                self._angle_1_vals.index(cfg.tree_specs[0].angle),
+                self._angle_2_vals.index(cfg.tree_specs[1].angle),
+                self._direction_vals.index(cfg.relations[0].direction),
+            ): pid
+            for pid, cfg in enumerate(configs)
+        }
+
+    def evaluate(
+        self,
+        tree_count: int,
+        patterns: Sequence[TilePattern],
+        construct: Callable[[int, TilePattern], Tiling],
+    ) -> Tiling:
+        best: Tiling | None = None
+
+        def objective(trial: optuna.Trial) -> float:
+            nonlocal best
+
+            i1 = trial.suggest_int(
+                "angle_1_idx", 0, len(self._angle_1_vals) - 1
+            )
+            i2 = trial.suggest_int(
+                "angle_2_idx", 0, len(self._angle_2_vals) - 1
+            )
+            i3 = trial.suggest_int(
+                "direction_12_idx", 0, len(self._direction_vals) - 1
+            )
+
+            pid = self._param_to_pid[(i1, i2, i3)]
+            pattern = self._patterns[pid]
+            tiling = construct(tree_count, pattern)
+
+            if best is None or tiling.side < best.side:
+                best = tiling
+
+            return float(tiling.side)
+
+        study = optuna.create_study(
+            sampler=optuna.samplers.TPESampler(seed=self.seed),
+            direction="minimize",
+        )
+
+        study.optimize(
+            objective, n_trials=self.n_trials, show_progress_bar=False
+        )
+
+        assert best is not None
+        return best
 
 
 # ---------------------------------------------------------------------
@@ -361,17 +443,29 @@ def expand_param_grid(
 
 
 def get_default_solver(parallel: bool = True) -> "Solver":
-    patterns = Solver.precompute_patterns(parallel=parallel)
+    configs, patterns = Solver.precompute_patterns(parallel=parallel)
     evaluator = BruteForceEvaluator()
-    return Solver(patterns=patterns, evaluator=evaluator, parallel=parallel)
+    return Solver(
+        configs=configs,
+        patterns=patterns,
+        evaluator=evaluator,
+        parallel=parallel,
+    )
 
 
 def get_optuna_solver(
     *, parallel: bool = True, n_trials: int, seed: int
 ) -> "Solver":
-    patterns = Solver.precompute_patterns(parallel=parallel)
-    evaluator = OptunaEvaluator(n_trials=n_trials, seed=seed)
-    return Solver(patterns=patterns, evaluator=evaluator, parallel=parallel)
+    configs, patterns = Solver.precompute_patterns(parallel=parallel)
+    evaluator = OptunaAxisEvaluator(
+        configs=configs, patterns=patterns, n_trials=n_trials, seed=seed
+    )
+    return Solver(
+        configs=configs,
+        patterns=patterns,
+        evaluator=evaluator,
+        parallel=parallel,
+    )
 
 
 class Solver:
@@ -386,12 +480,14 @@ class Solver:
         self,
         *,
         patterns: Sequence[TilePattern],
+        configs: Sequence[TileConfig],
         evaluator: PatternEvaluator,
         parallel: bool = True,
     ):
         self.parallel = parallel
-        self._patterns: tuple[TilePattern, ...] = tuple(patterns)
-        self._pattern_ids: range = range(len(self._patterns))
+        self._patterns = tuple(patterns)
+        self._configs: tuple[TileConfig, ...] = tuple(configs)
+        self._pattern_ids = range(len(self._patterns))
         self._evaluator = evaluator
 
     @property
@@ -401,14 +497,15 @@ class Solver:
     @classmethod
     def precompute_patterns(
         cls, *, parallel: bool = True
-    ) -> tuple[TilePattern, ...]:
+    ) -> tuple[tuple[TileConfig, ...], tuple[TilePattern, ...]]:
         configs = cls._build_configs()
-        return _map(
+        patterns = _map(
             TilePattern.from_config,
             configs,
             parallel=parallel,
             desc="Pre-computing tile patterns",
         )
+        return configs, patterns
 
     @classmethod
     def _build_configs(cls) -> tuple[TileConfig, ...]:
@@ -492,14 +589,24 @@ class Solver:
         return Tiling(pattern, tuple(positions), side)
 
 
-def benchmark_single_n(tree_count: int) -> None:
-    patterns = Solver.precompute_patterns(parallel=True)
+def benchmark_single_n(
+    configs: Sequence[TileConfig],
+    patterns: Sequence[TilePattern],
+    tree_count: int,
+) -> None:
     brute = Solver(
-        patterns=patterns, evaluator=BruteForceEvaluator(), parallel=True
+        configs=configs,
+        patterns=patterns,
+        evaluator=BruteForceEvaluator(),
+        parallel=True,
     )
     optuna_solver = Solver(
+        configs=configs,
         patterns=patterns,
-        evaluator=OptunaEvaluator(n_trials=400, seed=42),
+        # evaluator=OptunaEvaluator(n_trials=400, seed=42),
+        evaluator=OptunaAxisEvaluator(
+            configs=configs, patterns=patterns, n_trials=400, seed=42
+        ),
         parallel=True,
     )
 
@@ -517,5 +624,6 @@ def benchmark_single_n(tree_count: int) -> None:
 
 
 if __name__ == "__main__":
+    configs, patterns = Solver.precompute_patterns(parallel=True)
     for n in (50, 100, 200):
-        benchmark_single_n(n)
+        benchmark_single_n(configs, patterns, n)
