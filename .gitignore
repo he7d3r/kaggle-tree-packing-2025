@@ -5,3 +5,4 @@ data
 .ruff_cache
 mlruns
 mlruns.db
+*.prof
