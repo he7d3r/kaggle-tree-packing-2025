@@ -1,4 +1,5 @@
 import math
+import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
@@ -16,6 +17,7 @@ from typing import (
     TypeVar,
 )
 
+import optuna
 from shapely import unary_union
 from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
@@ -23,6 +25,7 @@ from tqdm import tqdm
 from christmas_tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 from solution import Solution
 
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 
@@ -300,6 +303,45 @@ class BruteForceEvaluator(PatternEvaluator):
         return best
 
 
+class OptunaEvaluator(PatternEvaluator):
+    def __init__(self, *, n_trials: int, seed: int):
+        self.n_trials = n_trials
+        self.seed = seed
+
+    def evaluate(
+        self,
+        tree_count: int,
+        patterns: Sequence[TilePattern],
+        construct: Callable[[int, TilePattern], Tiling],
+    ) -> Tiling:
+        best: Tiling | None = None
+
+        def objective(trial: optuna.Trial) -> float:
+            nonlocal best
+
+            pid = trial.suggest_int("pattern_id", 0, len(patterns) - 1)
+            pattern = patterns[pid]
+            tiling = construct(tree_count, pattern)
+            value = float(tiling.side)
+
+            if best is None or tiling.side < best.side:
+                best = tiling
+
+            return value
+
+        study = optuna.create_study(
+            sampler=optuna.samplers.TPESampler(seed=self.seed),
+            direction="minimize",
+        )
+
+        study.optimize(
+            objective, n_trials=self.n_trials, show_progress_bar=False
+        )
+
+        assert best is not None
+        return best
+
+
 # ---------------------------------------------------------------------
 # Solver
 # ---------------------------------------------------------------------
@@ -321,6 +363,14 @@ def expand_param_grid(
 def get_default_solver(parallel: bool = True) -> "Solver":
     patterns = Solver.precompute_patterns(parallel=parallel)
     evaluator = BruteForceEvaluator()
+    return Solver(patterns=patterns, evaluator=evaluator, parallel=parallel)
+
+
+def get_optuna_solver(
+    *, parallel: bool = True, n_trials: int, seed: int
+) -> "Solver":
+    patterns = Solver.precompute_patterns(parallel=parallel)
+    evaluator = OptunaEvaluator(n_trials=n_trials, seed=seed)
     return Solver(patterns=patterns, evaluator=evaluator, parallel=parallel)
 
 
@@ -391,13 +441,15 @@ class Solver:
         Solves the placement for a single tree count using the configured
         pattern evaluation strategy.
         """
-        best = self._evaluator.evaluate(
+        best = self._best_tiling_for_tree_count(tree_count)
+        return best.pattern.build_n_tree(best.positions).take_first(tree_count)
+
+    def _best_tiling_for_tree_count(self, tree_count: int) -> Tiling:
+        return self._evaluator.evaluate(
             tree_count=tree_count,
             patterns=self._patterns,
             construct=self._construct_tiling,
         )
-
-        return best.pattern.build_n_tree(best.positions).take_first(tree_count)
 
     def _construct_tiling(
         self, tree_count: int, pattern: TilePattern
@@ -438,3 +490,32 @@ class Solver:
 
         side = metrics.bounding_square_side(max_col, max_row)
         return Tiling(pattern, tuple(positions), side)
+
+
+def benchmark_single_n(tree_count: int) -> None:
+    patterns = Solver.precompute_patterns(parallel=True)
+    brute = Solver(
+        patterns=patterns, evaluator=BruteForceEvaluator(), parallel=True
+    )
+    optuna_solver = Solver(
+        patterns=patterns,
+        evaluator=OptunaEvaluator(n_trials=400, seed=42),
+        parallel=True,
+    )
+
+    t0 = time.perf_counter()
+    best_tiling = brute._best_tiling_for_tree_count(tree_count)
+    t1 = time.perf_counter()
+    best_tiling_opt = optuna_solver._best_tiling_for_tree_count(tree_count)
+    t2 = time.perf_counter()
+
+    print(f"N={tree_count}")
+    print(f"Brute side : {best_tiling.side}")
+    print(f"Optuna side: {best_tiling_opt.side}")
+    print(f"Brute time : {t1 - t0:.2f}s")
+    print(f"Optuna time: {t2 - t1:.2f}s")
+
+
+if __name__ == "__main__":
+    for n in (50, 100, 200):
+        benchmark_single_n(n)
