@@ -26,6 +26,8 @@ from christmas_tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 from solution import Solution
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+BISECTION_TOLERANCE = Decimal("0.000005")
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 
@@ -49,31 +51,6 @@ def _map(
 
     with ProcessPoolExecutor() as executor:
         return tuple(tqdm(executor.map(fn, items), total=len(items), desc=desc))
-
-
-BISECTION_TOLERANCE = Decimal("0.000005")
-
-
-def _has_horizontal_collision(geometry: BaseGeometry, offset: Decimal) -> bool:
-    """Test if horizontal offset causes collision."""
-    moved_x = GeometryAdapter.translate(geometry, dx=offset)
-    return detect_overlap(moved_x, geometry)
-
-
-def _has_vertical_collision(
-    geometry: BaseGeometry, dx: Decimal, offset: Decimal
-) -> bool:
-    """Test vertical offset collision considering horizontal neighbors."""
-    moved_y = GeometryAdapter.translate(geometry, dy=offset)
-    if detect_overlap(moved_y, geometry):
-        return True
-
-    moved_x = GeometryAdapter.translate(geometry, dx=dx)
-    if detect_overlap(moved_x, moved_y):
-        return True
-
-    moved_xy = GeometryAdapter.translate(geometry, dx=dx, dy=offset)
-    return detect_overlap(moved_xy, geometry)
 
 
 def _bisect_offset(
@@ -183,8 +160,27 @@ class TileConfig:
 
         return NTree.from_trees(tuple(trees))
 
-    def build_tree_at(self, x: Decimal, y: Decimal) -> ChristmasTree:
-        return ChristmasTree(x, y, angle=self.tree_specs[0].angle)
+
+def _has_horizontal_collision(geometry: BaseGeometry, offset: Decimal) -> bool:
+    """Test if horizontal offset causes collision."""
+    moved_x = GeometryAdapter.translate(geometry, dx=offset)
+    return detect_overlap(moved_x, geometry)
+
+
+def _has_vertical_collision(
+    geometry: BaseGeometry, dx: Decimal, offset: Decimal
+) -> bool:
+    """Test vertical offset collision considering horizontal neighbors."""
+    moved_y = GeometryAdapter.translate(geometry, dy=offset)
+    if detect_overlap(moved_y, geometry):
+        return True
+
+    moved_x = GeometryAdapter.translate(geometry, dx=dx)
+    if detect_overlap(moved_x, moved_y):
+        return True
+
+    moved_xy = GeometryAdapter.translate(geometry, dx=dx, dy=offset)
+    return detect_overlap(moved_xy, geometry)
 
 
 @dataclass(frozen=True)
@@ -195,7 +191,6 @@ class TileMetrics:
     height: Decimal
     dx: Decimal
     dy: Decimal
-    bounding_rectangle_area: Decimal
 
     @classmethod
     def from_n_tree(cls, n_tree: NTree) -> "TileMetrics":
@@ -218,13 +213,7 @@ class TileMetrics:
             tolerance=BISECTION_TOLERANCE,
         ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
 
-        return cls(
-            width=width,
-            height=height,
-            dx=dx,
-            dy=dy,
-            bounding_rectangle_area=n_tree.bounding_rectangle_area,
-        )
+        return cls(width=width, height=height, dx=dx, dy=dy)
 
     def coordinates(self, col: int, row: int) -> tuple[Decimal, Decimal]:
         return Decimal(col) * self.dx, Decimal(row) * self.dy
