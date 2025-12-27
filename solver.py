@@ -474,7 +474,7 @@ def get_default_solver(
         seed: Random seed for Optuna
     """
     if strategy == "brute":
-        evaluator = BruteForceEvaluator()
+        evaluator = BruteForceEvaluator(parallel=parallel)
     elif strategy == "optuna":
         evaluator = OptunaContinuousEvaluator(
             param_grid=PARAM_GRID,
