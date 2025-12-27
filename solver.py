@@ -299,6 +299,10 @@ class PatternEvaluator:
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling: ...
 
+    def elite_patterns(self) -> Sequence[TilePattern]:
+        """Patterns recommended for warm-starting the next solve step."""
+        return ()
+
 
 class BruteForceEvaluator(PatternEvaluator):
     def __init__(self, parallel: bool = True) -> None:
@@ -363,15 +367,18 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         n_trials: int,
         seed: int,
         warm_start: Sequence[TilePattern] = (),
+        top_k: int = 5,
     ):
         self.param_grid = param_grid
         self.n_trials = n_trials
         self.seed = seed
         self._warm_start = tuple(warm_start)
+        self.top_k = top_k
 
     def evaluate(
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling:
+        best_k: list[Tiling] = []
         best: Tiling | None = None
 
         def objective(trial: optuna.Trial) -> float:
@@ -405,6 +412,10 @@ class OptunaContinuousEvaluator(PatternEvaluator):
             if best is None or tiling.side < best.side:
                 best = tiling
 
+            best_k.append(tiling)
+            best_k.sort(key=lambda t: t.side)
+            del best_k[self.top_k :]
+
             return float(tiling.side)
 
         study = optuna.create_study(
@@ -426,8 +437,12 @@ class OptunaContinuousEvaluator(PatternEvaluator):
             objective, n_trials=self.n_trials, show_progress_bar=False
         )
 
+        self._elite_patterns = tuple(t.pattern for t in best_k)
         assert best is not None
         return best
+
+    def elite_patterns(self) -> Sequence[TilePattern]:
+        return getattr(self, "_elite_patterns", ())
 
 
 # ---------------------------------------------------------------------
@@ -501,7 +516,9 @@ class Solver:
                     tree_count=tree_count, construct=self._construct_tiling
                 )
 
-                warm_patterns = [tiling.pattern]
+                warm_patterns = list(
+                    evaluator.elite_patterns() or (tiling.pattern,)
+                )
 
                 n_trees.append(
                     tiling.pattern.build_n_tree(tiling.positions).take_first(
