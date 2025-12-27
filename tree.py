@@ -37,10 +37,7 @@ class GeometryAdapter:
         )
 
     @staticmethod
-    def rotate(
-        polygon: Polygon,
-        angle_deg: Decimal,
-    ) -> Polygon:
+    def rotate(polygon: Polygon, angle_deg: Decimal) -> Polygon:
         return affinity.rotate(polygon, float(angle_deg), origin=(0.0, 0.0))
 
     @staticmethod
