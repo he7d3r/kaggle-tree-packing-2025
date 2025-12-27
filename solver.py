@@ -37,6 +37,7 @@ class DecimalRange:
     step: Decimal = Decimal("1")
 
 
+TRIALS = 100
 PARAM_GRID = {
     "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("90")),
     "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("90")),
@@ -478,7 +479,7 @@ def get_default_solver(
         evaluator = OptunaContinuousEvaluator(
             param_grid=PARAM_GRID,
             tile_factory=tile_factory,
-            n_trials=50,
+            n_trials=TRIALS,
             seed=seed,
         )
     else:
@@ -517,7 +518,6 @@ class Solver:
                 )
             else:
                 evaluator = self._evaluator
-            evaluator = self._evaluator
             tiling = evaluator.evaluate(
                 tree_count=tree_count, construct=self._construct_tiling
             )
