@@ -39,9 +39,9 @@ class DecimalRange:
 
 TRIALS = 100
 PARAM_GRID = {
-    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("90")),
-    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("90")),
-    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("90")),
+    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
+    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
+    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
 }
 
 

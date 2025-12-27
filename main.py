@@ -1,7 +1,10 @@
+import cProfile
 import glob
 import os
+import pstats
 import subprocess
 import sys
+from contextlib import contextmanager
 from datetime import datetime
 
 from solution import Solution
@@ -52,6 +55,23 @@ def get_git_run_name() -> str:
 
 
 DEFAULT_RUN_NAME = get_git_run_name()
+
+
+@contextmanager
+def profile_if(enabled: bool, filename: str = "profile_stats.prof"):
+    """Context manager for conditional profiling."""
+    if enabled:
+        profiler = cProfile.Profile()
+        profiler.enable()
+        try:
+            yield
+        finally:
+            profiler.disable()
+            profiler.dump_stats(filename)
+            stats = pstats.Stats(filename)
+            stats.sort_stats(pstats.SortKey.CUMULATIVE).print_stats(20)
+    else:
+        yield
 
 
 logger = logging.getLogger(__name__)
@@ -113,6 +133,11 @@ def parse_args() -> argparse.Namespace:
             "Accepts a single file path or a glob pattern (e.g., '*.csv'). "
             "Default: 'submission.csv' when flag is used without argument."
         ),
+    )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Enable performance profiling",
     )
 
     try:
@@ -206,12 +231,12 @@ def main() -> None:
     # Original main logic
     parallel = not args.no_parallel
     plotter = Plotter(parallel=parallel)
-    solver = get_default_solver(parallel=parallel)
-
     run = start_mlflow(args.run_name) if args.mlflow else None
 
     try:
-        solution = solver.solve(problem_sizes=range(1, args.max + 1))
+        with profile_if(args.profile, "output.prof"):
+            solver = get_default_solver(parallel=parallel)
+            solution = solver.solve(problem_sizes=range(1, args.max + 1))
 
         if args.plot_every > 0:
             plotter.plot(
