@@ -7,6 +7,8 @@ import sys
 from contextlib import contextmanager
 from datetime import datetime
 
+import mlflow
+
 from solution import Solution
 
 # Force matplotlib to use a non-GUI backend BEFORE any imports
@@ -162,8 +164,6 @@ def parse_args() -> argparse.Namespace:
 
 def start_mlflow(run_name: str):
     """Start an MLflow run with the given name."""
-    import mlflow
-
     mlflow.set_tracking_uri(TRACKING_URI)
     mlflow.set_experiment(EXPERIMENT_NAME)
     return mlflow.start_run(run_name=run_name)
@@ -264,8 +264,6 @@ def main() -> None:
         score = solution.score()
 
         if args.mlflow:
-            import mlflow
-
             mlflow.log_param("run_name", args.run_name)
             mlflow.log_metric("submission_score", score)
             logger.info("MLflow run name: %s", args.run_name)
@@ -280,16 +278,12 @@ def main() -> None:
 
     except Exception as e:
         if args.mlflow:
-            import mlflow
-
             mlflow.log_param("error", str(e))
             mlflow.log_param("run_name", args.run_name)
             mlflow.end_run(status="FAILED")
         raise
     finally:
         if args.mlflow and run is not None:
-            import mlflow
-
             mlflow.end_run()
 
 
