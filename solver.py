@@ -1,5 +1,4 @@
 import math
-import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
@@ -8,7 +7,6 @@ from itertools import product
 from typing import (
     Any,
     Callable,
-    ClassVar,
     Iterable,
     Iterator,
     Mapping,
@@ -30,6 +28,20 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 BISECTION_TOLERANCE = Decimal("0.000005")
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
+
+
+@dataclass(frozen=True)
+class DecimalRange:
+    start: Decimal
+    end: Decimal
+    step: Decimal = Decimal("1")
+
+
+PARAM_GRID = {
+    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("90")),
+    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("90")),
+    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("90")),
+}
 
 
 class _SizedContainer(Protocol[T_co]):
@@ -268,22 +280,50 @@ class PatternEvaluator:
     """Strategy interface for selecting the best tiling among patterns."""
 
     def evaluate(
-        self,
-        tree_count: int,
-        patterns: Sequence[TilePattern],
-        construct: Callable[[int, TilePattern], Tiling],
+        self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling: ...
 
 
 class BruteForceEvaluator(PatternEvaluator):
+    def __init__(self, parallel: bool = True) -> None:
+        patterns = self.precompute_patterns(parallel=parallel)
+        self.patterns: tuple[TilePattern, ...] = patterns
+
+    @classmethod
+    def precompute_patterns(
+        cls, *, parallel: bool = True
+    ) -> tuple[TilePattern, ...]:
+        configs = cls._build_configs()
+        return _map(
+            TilePattern.from_config,
+            configs,
+            parallel=parallel,
+            desc="Pre-computing tile patterns",
+        )
+
+    @classmethod
+    def _build_configs(cls) -> tuple[TileConfig, ...]:
+        param_grid = {
+            p: tuple(
+                Decimal(v)
+                for v in range(int(r.start), int(r.end) + 1, int(r.step))
+            )
+            for p, r in PARAM_GRID.items()
+        }
+        return tuple(
+            tile_config_factory(
+                angle_1=params["angle_1"],
+                angle_2=params["angle_2"],
+                direction=params["direction_12"],
+            )
+            for params in expand_param_grid(param_grid)
+        )
+
     def evaluate(
-        self,
-        tree_count: int,
-        patterns: Sequence[TilePattern],
-        construct: Callable[[int, TilePattern], Tiling],
+        self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling:
         best: Tiling | None = None
-        for pattern in patterns:
+        for pattern in self.patterns:
             candidate = construct(tree_count, pattern)
             if best is None or candidate.side < best.side:
                 best = candidate
@@ -292,74 +332,84 @@ class BruteForceEvaluator(PatternEvaluator):
         return best
 
 
-class OptunaAxisEvaluator(PatternEvaluator):
+def tile_config_factory(
+    angle_1: Decimal, angle_2: Decimal, direction: Decimal
+) -> TileConfig:
     """
-    Optuna evaluator that samples PARAM_GRID axes exactly,
-    without assuming uniform spacing or using categoricals.
+    Construct a TileConfig on demand from Decimal parameters.
+    """
+    return TileConfig(
+        tree_specs=(TreeSpec(angle=angle_1), TreeSpec(angle=angle_2)),
+        relations=(
+            RelativeTransform(from_idx=0, to_idx=1, direction=direction),
+        ),
+    )
+
+
+def tile_factory(
+    angle_1: Decimal, angle_2: Decimal, direction: Decimal
+) -> TilePattern:
+    """
+    Construct a TilePattern on demand from Decimal parameters.
+    """
+    return TilePattern.from_config(
+        tile_config_factory(angle_1, angle_2, direction)
+    )
+
+
+class OptunaContinuousEvaluator(PatternEvaluator):
+    """
+    Optuna evaluator using a continuous parameter space.
+    Patterns are generated on demand from floating-point parameters.
     """
 
     def __init__(
         self,
         *,
-        configs: Sequence[TileConfig],
-        patterns: Sequence[TilePattern],
+        param_grid: Mapping[str, DecimalRange] = PARAM_GRID,
+        tile_factory: Callable[[Decimal, Decimal, Decimal], TilePattern],
         n_trials: int,
         seed: int,
+        warm_start: Sequence[TilePattern] = (),
     ):
+        self.param_grid = param_grid
+        self.tile_factory = tile_factory
         self.n_trials = n_trials
         self.seed = seed
-
-        # Stable lookup: (angle_1, angle_2, direction) -> TilePattern
-        self._pattern_by_params: dict[
-            tuple[Decimal, Decimal, Decimal], TilePattern
-        ] = {}
-
-        for cfg, pattern in zip(configs, patterns):
-            key = (
-                cfg.tree_specs[0].angle,
-                cfg.tree_specs[1].angle,
-                cfg.relations[0].direction,
-            )
-            self._pattern_by_params[key] = pattern
-
-        # Axis domains (ordered, deterministic)
-        self._angle_1_vals = tuple(
-            sorted({k[0] for k in self._pattern_by_params})
-        )
-        self._angle_2_vals = tuple(
-            sorted({k[1] for k in self._pattern_by_params})
-        )
-        self._direction_vals = tuple(
-            sorted({k[2] for k in self._pattern_by_params})
-        )
+        self._warm_start = tuple(warm_start)
 
     def evaluate(
-        self,
-        tree_count: int,
-        patterns: Sequence[TilePattern],  # kept for interface compatibility
-        construct: Callable[[int, TilePattern], Tiling],
+        self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling:
         best: Tiling | None = None
 
         def objective(trial: optuna.Trial) -> float:
             nonlocal best
 
-            i1 = trial.suggest_int(
-                "angle_1_idx", 0, len(self._angle_1_vals) - 1
+            angle_1 = Decimal(
+                trial.suggest_float(
+                    "angle_1",
+                    float(self.param_grid["angle_1"].start),
+                    float(self.param_grid["angle_1"].end),
+                )
             )
-            i2 = trial.suggest_int(
-                "angle_2_idx", 0, len(self._angle_2_vals) - 1
+            angle_2 = Decimal(
+                trial.suggest_float(
+                    "angle_2",
+                    float(self.param_grid["angle_2"].start),
+                    float(self.param_grid["angle_2"].end),
+                )
             )
-            i3 = trial.suggest_int(
-                "direction_12_idx", 0, len(self._direction_vals) - 1
+            direction_12 = Decimal(
+                trial.suggest_float(
+                    "direction_12",
+                    float(self.param_grid["direction_12"].start),
+                    float(self.param_grid["direction_12"].end),
+                )
             )
 
-            angle_1 = self._angle_1_vals[i1]
-            angle_2 = self._angle_2_vals[i2]
-            direction = self._direction_vals[i3]
-
-            pattern = self._pattern_by_params[(angle_1, angle_2, direction)]
-
+            # Generate TilePattern on demand
+            pattern = self.tile_factory(angle_1, angle_2, direction_12)
             tiling = construct(tree_count, pattern)
 
             if best is None or tiling.side < best.side:
@@ -372,8 +422,21 @@ class OptunaAxisEvaluator(PatternEvaluator):
             direction="minimize",
         )
 
+        for pattern in self._warm_start:
+            cfg = pattern.config
+            study.enqueue_trial(
+                {
+                    "angle_1": cfg.tree_specs[0].angle,
+                    "angle_2": cfg.tree_specs[1].angle,
+                    "direction_12": cfg.relations[0].direction,
+                }
+            )
+
         study.optimize(
-            objective, n_trials=self.n_trials, show_progress_bar=False
+            objective,
+            n_trials=self.n_trials,
+            show_progress_bar=False,
+            n_jobs=-1,
         )
 
         assert best is not None
@@ -409,99 +472,65 @@ def get_default_solver(
         parallel: Enable multiprocessing
         seed: Random seed for Optuna
     """
-    configs, patterns = Solver.precompute_patterns(parallel=parallel)
-
     if strategy == "brute":
         evaluator = BruteForceEvaluator()
     elif strategy == "optuna":
-        evaluator = OptunaAxisEvaluator(
-            configs=configs, patterns=patterns, n_trials=300, seed=seed
+        evaluator = OptunaContinuousEvaluator(
+            param_grid=PARAM_GRID,
+            tile_factory=tile_factory,
+            n_trials=50,
+            seed=seed,
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
 
-    return Solver(
-        configs=configs,
-        patterns=patterns,
-        evaluator=evaluator,
-        parallel=parallel,
-    )
+    return Solver(evaluator=evaluator, parallel=parallel)
 
 
 class Solver:
-    PARAM_GRID: ClassVar[dict[str, tuple[Any, ...]]] = {
-        "angle_1": tuple(Decimal(a) for a in range(0, 91, 5)),
-        "angle_2": tuple(Decimal(a) for a in range(0, 181, 5)),
-        # angle from tree1 to tree2
-        "direction_12": tuple(Decimal(a) for a in range(0, 91, 5)),
-    }
-
     def __init__(
-        self,
-        *,
-        patterns: Sequence[TilePattern],
-        configs: Sequence[TileConfig],
-        evaluator: PatternEvaluator,
-        parallel: bool = True,
-    ):
+        self, *, evaluator: PatternEvaluator, parallel: bool = True
+    ) -> None:
         self.parallel = parallel
-        self._patterns = tuple(patterns)
-        self._configs: tuple[TileConfig, ...] = tuple(configs)
         self._evaluator = evaluator
 
-    @classmethod
-    def precompute_patterns(
-        cls, *, parallel: bool = True
-    ) -> tuple[tuple[TileConfig, ...], tuple[TilePattern, ...]]:
-        configs = cls._build_configs()
-        patterns = _map(
-            TilePattern.from_config,
-            configs,
-            parallel=parallel,
-            desc="Pre-computing tile patterns",
-        )
-        return configs, patterns
-
-    @classmethod
-    def _build_configs(cls) -> tuple[TileConfig, ...]:
-        configs: list[TileConfig] = []
-        for params in expand_param_grid(cls.PARAM_GRID):
-            specs = (
-                TreeSpec(angle=params["angle_1"]),
-                TreeSpec(angle=params["angle_2"]),
-            )
-            relations = (
-                RelativeTransform(
-                    from_idx=0, to_idx=1, direction=params["direction_12"]
-                ),
-            )
-            configs.append(TileConfig(tree_specs=specs, relations=relations))
-        return tuple(configs)
-
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
-        """Solves the tree placement problem for the specified n-tree sizes."""
-        n_trees = _map(
-            self._solve_for_tree_count,
-            problem_sizes,
-            parallel=self.parallel,
-            desc="Placing trees",
-        )
-        return Solution(n_trees=n_trees)
-
-    def _solve_for_tree_count(self, tree_count: int) -> NTree:
         """
-        Solves the placement for a single tree count using the configured
-        pattern evaluation strategy.
-        """
-        best = self._best_tiling_for_tree_count(tree_count)
-        return best.pattern.build_n_tree(best.positions).take_first(tree_count)
+        Solves the tree placement problem for the specified n-tree sizes.
 
-    def _best_tiling_for_tree_count(self, tree_count: int) -> Tiling:
-        return self._evaluator.evaluate(
-            tree_count=tree_count,
-            patterns=self._patterns,
-            construct=self._construct_tiling,
-        )
+        Warm-starts Optuna across increasing N.
+        """
+        n_trees: list[NTree] = []
+
+        warm_patterns: list[TilePattern] = []
+
+        for tree_count in tqdm(
+            problem_sizes, total=len(problem_sizes), desc="Placing trees"
+        ):
+            if isinstance(self._evaluator, OptunaContinuousEvaluator):
+                evaluator = OptunaContinuousEvaluator(
+                    param_grid=self._evaluator.param_grid,
+                    tile_factory=self._evaluator.tile_factory,
+                    n_trials=self._evaluator.n_trials,
+                    seed=self._evaluator.seed,
+                    warm_start=warm_patterns,
+                )
+            else:
+                evaluator = self._evaluator
+            evaluator = self._evaluator
+            tiling = evaluator.evaluate(
+                tree_count=tree_count, construct=self._construct_tiling
+            )
+
+            warm_patterns = [tiling.pattern]
+
+            n_trees.append(
+                tiling.pattern.build_n_tree(tiling.positions).take_first(
+                    tree_count
+                )
+            )
+
+        return Solution(n_trees=tuple(n_trees))
 
     def _construct_tiling(
         self, tree_count: int, pattern: TilePattern
@@ -542,42 +571,3 @@ class Solver:
 
         side = metrics.bounding_square_side(max_col, max_row)
         return Tiling(pattern, tuple(positions), side)
-
-
-def benchmark_single_n(
-    configs: Sequence[TileConfig],
-    patterns: Sequence[TilePattern],
-    tree_count: int,
-) -> None:
-    brute = Solver(
-        configs=configs,
-        patterns=patterns,
-        evaluator=BruteForceEvaluator(),
-        parallel=True,
-    )
-    optuna_solver = Solver(
-        configs=configs,
-        patterns=patterns,
-        evaluator=OptunaAxisEvaluator(
-            configs=configs, patterns=patterns, n_trials=400, seed=42
-        ),
-        parallel=True,
-    )
-
-    t0 = time.perf_counter()
-    best_tiling = brute._best_tiling_for_tree_count(tree_count)
-    t1 = time.perf_counter()
-    best_tiling_opt = optuna_solver._best_tiling_for_tree_count(tree_count)
-    t2 = time.perf_counter()
-
-    print(f"N={tree_count}")
-    print(f"Brute side : {best_tiling.side}")
-    print(f"Optuna side: {best_tiling_opt.side}")
-    print(f"Brute time : {t1 - t0:.2f}s")
-    print(f"Optuna time: {t2 - t1:.2f}s")
-
-
-if __name__ == "__main__":
-    configs, patterns = Solver.precompute_patterns(parallel=True)
-    for n in (50, 100, 200):
-        benchmark_single_n(configs, patterns, n)
