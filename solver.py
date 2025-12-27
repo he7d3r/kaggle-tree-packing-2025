@@ -2,7 +2,7 @@ import math
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
-from functools import partial
+from functools import lru_cache, partial
 from itertools import product
 from typing import (
     Any,
@@ -358,6 +358,13 @@ def tile_factory(
     )
 
 
+@lru_cache(maxsize=10_000)
+def cached_tile_pattern(
+    angle_1: Decimal, angle_2: Decimal, direction: Decimal
+) -> TilePattern:
+    return tile_factory(angle_1, angle_2, direction)
+
+
 class OptunaContinuousEvaluator(PatternEvaluator):
     """
     Optuna evaluator using a continuous parameter space.
@@ -410,7 +417,7 @@ class OptunaContinuousEvaluator(PatternEvaluator):
             )
 
             # Generate TilePattern on demand
-            pattern = self.tile_factory(angle_1, angle_2, direction_12)
+            pattern = cached_tile_pattern(angle_1, angle_2, direction_12)
             tiling = construct(tree_count, pattern)
 
             if best is None or tiling.side < best.side:
