@@ -12,8 +12,8 @@ from numpy.typing import NDArray
 from shapely import Polygon
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree, NTree, from_float
 from solution import Solution
+from tree import ChristmasTree, NTree, from_float
 
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")

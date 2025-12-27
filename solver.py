@@ -20,8 +20,8 @@ from shapely import unary_union
 from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
-from christmas_tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 from solution import Solution
+from tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
