@@ -139,6 +139,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable performance profiling",
     )
+    parser.add_argument(
+        "--strategy",
+        choices=["brute", "optuna"],
+        default="brute",
+        help="Solver strategy to use (default: brute)",
+    )
 
     try:
         return parser.parse_known_args()[0]
@@ -228,14 +234,14 @@ def main() -> None:
 
         return
 
-    # Original main logic
+    strategy = args.strategy
     parallel = not args.no_parallel
     plotter = Plotter(parallel=parallel)
     run = start_mlflow(args.run_name) if args.mlflow else None
 
     try:
         with profile_if(args.profile, "output.prof"):
-            solver = get_default_solver(parallel=parallel)
+            solver = get_default_solver(strategy=strategy, parallel=parallel)
             solution = solver.solve(problem_sizes=range(1, args.max + 1))
 
         if args.plot_every > 0:
