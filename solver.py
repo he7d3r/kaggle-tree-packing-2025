@@ -347,22 +347,13 @@ def tile_config_factory(
     )
 
 
-def tile_factory(
-    angle_1: Decimal, angle_2: Decimal, direction: Decimal
-) -> TilePattern:
-    """
-    Construct a TilePattern on demand from Decimal parameters.
-    """
-    return TilePattern.from_config(
-        tile_config_factory(angle_1, angle_2, direction)
-    )
-
-
-@lru_cache(maxsize=10_000)
+@lru_cache(maxsize=20_000)
 def cached_tile_pattern(
     angle_1: Decimal, angle_2: Decimal, direction: Decimal
 ) -> TilePattern:
-    return tile_factory(angle_1, angle_2, direction)
+    return TilePattern.from_config(
+        tile_config_factory(angle_1, angle_2, direction)
+    )
 
 
 class OptunaContinuousEvaluator(PatternEvaluator):
@@ -375,13 +366,11 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         self,
         *,
         param_grid: Mapping[str, DecimalRange] = PARAM_GRID,
-        tile_factory: Callable[[Decimal, Decimal, Decimal], TilePattern],
         n_trials: int,
         seed: int,
         warm_start: Sequence[TilePattern] = (),
     ):
         self.param_grid = param_grid
-        self.tile_factory = tile_factory
         self.n_trials = n_trials
         self.seed = seed
         self._warm_start = tuple(warm_start)
@@ -481,10 +470,7 @@ def get_default_solver(
         evaluator = BruteForceEvaluator(parallel=parallel)
     elif strategy == "optuna":
         evaluator = OptunaContinuousEvaluator(
-            param_grid=PARAM_GRID,
-            tile_factory=tile_factory,
-            n_trials=TRIALS,
-            seed=seed,
+            param_grid=PARAM_GRID, n_trials=TRIALS, seed=seed
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
@@ -514,7 +500,6 @@ class Solver:
             ):
                 evaluator = OptunaContinuousEvaluator(
                     param_grid=self._evaluator.param_grid,
-                    tile_factory=self._evaluator.tile_factory,
                     n_trials=self._evaluator.n_trials,
                     seed=self._evaluator.seed,
                     warm_start=warm_patterns,
