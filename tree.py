@@ -1,4 +1,5 @@
 import math
+from abc import abstractmethod
 from dataclasses import dataclass
 from decimal import Decimal, getcontext
 from functools import cached_property
@@ -100,8 +101,29 @@ def _create_initial_tree_polygon() -> Polygon:
 BASE_TREE: Polygon = _create_initial_tree_polygon()
 
 
+class BoundedGeometryMixin:
+    """Mixin providing common geometry properties."""
+
+    @property
+    @abstractmethod
+    def bounds(self) -> tuple[Decimal, Decimal, Decimal, Decimal]: ...
+
+    @cached_property
+    def sides(self) -> tuple[Decimal, Decimal]:
+        minx, miny, maxx, maxy = self.bounds
+        return maxx - minx, maxy - miny
+
+    @cached_property
+    def side_length(self) -> Decimal:
+        return max(self.sides)
+
+    @cached_property
+    def bounding_rectangle_area(self) -> Decimal:
+        return Decimal(math.prod(self.sides))
+
+
 @dataclass(frozen=True)
-class ChristmasTree:
+class ChristmasTree(BoundedGeometryMixin):
     """Immutable single Christmas tree with fixed size and rotation/position."""
 
     center_x: Decimal = Decimal("0")
@@ -141,19 +163,6 @@ class ChristmasTree:
         return GeometryAdapter.bounds(self.polygon)
 
     @cached_property
-    def sides(self) -> tuple[Decimal, Decimal]:
-        minx, miny, maxx, maxy = self.bounds
-        return maxx - minx, maxy - miny
-
-    @cached_property
-    def side_length(self) -> Decimal:
-        return max(self.sides)
-
-    @cached_property
-    def bounding_rectangle_area(self) -> Decimal:
-        return Decimal(math.prod(self.sides))
-
-    @cached_property
     def half_diagonal(self) -> Decimal:
         w, h = self.sides
         return (w * w + h * h).sqrt() / 2
@@ -168,7 +177,7 @@ class ChristmasTree:
 
 
 @dataclass(frozen=True)
-class NTree:
+class NTree(BoundedGeometryMixin):
     """
     Immutable recursive tree structure.
 
@@ -236,19 +245,6 @@ class NTree:
         if self.tree is not None:
             return self.tree.bounds
         return GeometryAdapter.bounds(unary_union(self.polygons))
-
-    @cached_property
-    def sides(self) -> tuple[Decimal, Decimal]:
-        minx, miny, maxx, maxy = self.bounds
-        return maxx - minx, maxy - miny
-
-    @cached_property
-    def side_length(self) -> Decimal:
-        return max(self.sides)
-
-    @cached_property
-    def bounding_rectangle_area(self) -> Decimal:
-        return Decimal(math.prod(self.sides))
 
     @cached_property
     def score(self) -> Decimal:
