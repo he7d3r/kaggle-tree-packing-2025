@@ -434,10 +434,7 @@ class OptunaContinuousEvaluator(PatternEvaluator):
             )
 
         study.optimize(
-            objective,
-            n_trials=self.n_trials,
-            show_progress_bar=False,
-            n_jobs=-1,
+            objective, n_trials=self.n_trials, show_progress_bar=False
         )
 
         assert best is not None
@@ -501,14 +498,13 @@ class Solver:
 
         Warm-starts Optuna across increasing N.
         """
-        n_trees: list[NTree] = []
 
-        warm_patterns: list[TilePattern] = []
-
-        for tree_count in tqdm(
-            problem_sizes, total=len(problem_sizes), desc="Placing trees"
-        ):
-            if isinstance(self._evaluator, OptunaContinuousEvaluator):
+        if isinstance(self._evaluator, OptunaContinuousEvaluator):
+            n_trees: list[NTree] = []
+            warm_patterns: list[TilePattern] = []
+            for tree_count in tqdm(
+                problem_sizes, total=len(problem_sizes), desc="Placing trees"
+            ):
                 evaluator = OptunaContinuousEvaluator(
                     param_grid=self._evaluator.param_grid,
                     tile_factory=self._evaluator.tile_factory,
@@ -516,21 +512,38 @@ class Solver:
                     seed=self._evaluator.seed,
                     warm_start=warm_patterns,
                 )
-            else:
-                evaluator = self._evaluator
-            tiling = evaluator.evaluate(
-                tree_count=tree_count, construct=self._construct_tiling
-            )
+                tiling = evaluator.evaluate(
+                    tree_count=tree_count, construct=self._construct_tiling
+                )
 
-            warm_patterns = [tiling.pattern]
+                warm_patterns = [tiling.pattern]
 
-            n_trees.append(
-                tiling.pattern.build_n_tree(tiling.positions).take_first(
-                    tree_count
+                n_trees.append(
+                    tiling.pattern.build_n_tree(tiling.positions).take_first(
+                        tree_count
+                    )
+                )
+        else:
+            n_trees = list(
+                _map(
+                    self._solve_for_tree_count,
+                    problem_sizes,
+                    parallel=self.parallel,
+                    desc="Placing trees",
                 )
             )
 
         return Solution(n_trees=tuple(n_trees))
+
+    def _solve_for_tree_count(self, tree_count: int) -> NTree:
+        """
+        Solves the placement for a single tree count using the configured
+        pattern evaluation strategy.
+        """
+        best = self._evaluator.evaluate(
+            tree_count=tree_count, construct=self._construct_tiling
+        )
+        return best.pattern.build_n_tree(best.positions).take_first(tree_count)
 
     def _construct_tiling(
         self, tree_count: int, pattern: TilePattern
