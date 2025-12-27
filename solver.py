@@ -9,10 +9,12 @@ from typing import (
     Callable,
     Iterable,
     Iterator,
+    Literal,
     Mapping,
     Protocol,
     Sequence,
     TypeVar,
+    runtime_checkable,
 )
 
 import optuna
@@ -37,12 +39,12 @@ class DecimalRange:
     step: Decimal = Decimal("1")
 
 
-TRIALS = 100
 PARAM_GRID = {
-    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
-    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
-    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
+    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("30")),
+    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("30")),
+    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("30")),
 }
+OPTUNA_N_TRIALS = 50
 
 
 class _SizedContainer(Protocol[T_co]):
@@ -292,6 +294,11 @@ class Tiling:
     side: Decimal
 
 
+@runtime_checkable
+class WarmStartCapable(Protocol):
+    def warm_start(self, patterns: Sequence[TilePattern]) -> None: ...
+
+
 class PatternEvaluator:
     """Strategy interface for selecting the best tiling among patterns."""
 
@@ -303,11 +310,15 @@ class PatternEvaluator:
         """Patterns recommended for warm-starting the next solve step."""
         return ()
 
+    @property
+    def execution_mode(self) -> Literal["sequential", "parallel"]: ...
+
 
 class BruteForceEvaluator(PatternEvaluator):
-    def __init__(self, parallel: bool = True) -> None:
-        patterns = self.precompute_patterns(parallel=parallel)
-        self.patterns: tuple[TilePattern, ...] = patterns
+    def __init__(self, parallel: bool = True, top_k: int = 5) -> None:
+        self.patterns = self.precompute_patterns(parallel=parallel)
+        self.top_k = top_k
+        self._elite_patterns: tuple[TilePattern, ...] = ()
 
     @classmethod
     def precompute_patterns(
@@ -344,14 +355,19 @@ class BruteForceEvaluator(PatternEvaluator):
     def evaluate(
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling:
-        best: Tiling | None = None
-        for pattern in self.patterns:
-            candidate = construct(tree_count, pattern)
-            if best is None or candidate.side < best.side:
-                best = candidate
+        best_k: list[Tiling] = []
 
-        assert best is not None
-        return best
+        for pattern in self.patterns:
+            tiling = construct(tree_count, pattern)
+            best_k.append(tiling)
+            best_k.sort(key=lambda t: t.side)
+            del best_k[self.top_k :]
+
+        self._elite_patterns = tuple(t.pattern for t in best_k)
+        return best_k[0]
+
+    def elite_patterns(self) -> Sequence[TilePattern]:
+        return self._elite_patterns
 
 
 class OptunaContinuousEvaluator(PatternEvaluator):
@@ -363,23 +379,68 @@ class OptunaContinuousEvaluator(PatternEvaluator):
     def __init__(
         self,
         *,
-        param_grid: Mapping[str, DecimalRange] = PARAM_GRID,
+        param_grid: Mapping[str, DecimalRange],
         n_trials: int,
         seed: int,
         warm_start: Sequence[TilePattern] = (),
         top_k: int = 5,
-    ):
+    ) -> None:
         self.param_grid = param_grid
         self.n_trials = n_trials
         self.seed = seed
-        self._warm_start = tuple(warm_start)
         self.top_k = top_k
 
+        # patterns injected by Solver before evaluate()
+        self._warm_patterns: tuple[TilePattern, ...] = tuple(warm_start)
+
+        # patterns discovered in the last run
+        self._elite_patterns: tuple[TilePattern, ...] = ()
+
+    # -------- public API --------
+
+    @property
+    def execution_mode(self) -> Literal["sequential"]:
+        return "sequential"
+
+    def warm_start(self, patterns: Sequence[TilePattern]) -> None:
+        self._warm_patterns = tuple(patterns)
+
+    def elite_patterns(self) -> Sequence[TilePattern]:
+        return self._elite_patterns
+
     def evaluate(
-        self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
+        self,
+        tree_count: int,
+        construct: Callable[[int, TilePattern], Tiling],
     ) -> Tiling:
-        best_k: list[Tiling] = []
+        """
+        Public entry point. Creates a fresh evaluator to ensure a clean
+        Optuna study per tree_count, while propagating warm-start patterns.
+        """
+        evaluator = OptunaContinuousEvaluator(
+            param_grid=self.param_grid,
+            n_trials=self.n_trials,
+            seed=self.seed,
+            warm_start=self._warm_patterns,
+            top_k=self.top_k,
+        )
+
+        best = evaluator._run(tree_count, construct)
+
+        # propagate elite patterns back to this instance
+        self._elite_patterns = evaluator._elite_patterns
+
+        return best
+
+    # -------- internal implementation --------
+
+    def _run(
+        self,
+        tree_count: int,
+        construct: Callable[[int, TilePattern], Tiling],
+    ) -> Tiling:
         best: Tiling | None = None
+        best_k: list[Tiling] = []
 
         def objective(trial: optuna.Trial) -> float:
             nonlocal best
@@ -405,6 +466,7 @@ class OptunaContinuousEvaluator(PatternEvaluator):
                     float(self.param_grid["direction_12"].end),
                 )
             )
+
             tile_config = TileConfig.from_params(angle_1, angle_2, direction_12)
             tile_pattern = TilePattern.from_tile_config(tile_config)
             tiling = construct(tree_count, tile_pattern)
@@ -423,7 +485,8 @@ class OptunaContinuousEvaluator(PatternEvaluator):
             direction="minimize",
         )
 
-        for pattern in self._warm_start:
+        # enqueue warm-start trials
+        for pattern in self._warm_patterns:
             cfg = pattern.config
             study.enqueue_trial(
                 {
@@ -441,8 +504,30 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         assert best is not None
         return best
 
+
+class HybridEvaluator(PatternEvaluator):
+    def __init__(
+        self, brute: BruteForceEvaluator, optuna: PatternEvaluator
+    ) -> None:
+        self.brute = brute
+        self.optuna = optuna
+
+    def evaluate(
+        self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
+    ) -> Tiling:
+        # 1. Generate elite patterns
+        self.brute.evaluate(tree_count, construct)
+        warm_patterns = list(self.brute.elite_patterns())
+
+        # 2. Warm-start if supported
+        if isinstance(self.optuna, WarmStartCapable):
+            self.optuna.warm_start(warm_patterns)
+
+        # 3. Delegate to optuna
+        return self.optuna.evaluate(tree_count, construct)
+
     def elite_patterns(self) -> Sequence[TilePattern]:
-        return getattr(self, "_elite_patterns", ())
+        return self.optuna.elite_patterns()
 
 
 # ---------------------------------------------------------------------
@@ -464,21 +549,30 @@ def expand_param_grid(
 
 
 def get_default_solver(
-    *, strategy: str = "brute", parallel: bool = True, seed: int = 42
+    *, strategy: str = "hybrid", parallel: bool = True, seed: int = 42
 ) -> "Solver":
     """
     Create solver with specified strategy.
 
     Args:
-        strategy: "brute" (default) or "optuna"
+        strategy: "brute", "optuna" or "hybrid" (default)
         parallel: Enable multiprocessing
         seed: Random seed for Optuna
     """
-    if strategy == "brute":
+    if strategy == "hybrid":
+        evaluator = HybridEvaluator(
+            brute=BruteForceEvaluator(parallel=parallel, top_k=5),
+            optuna=OptunaContinuousEvaluator(
+                param_grid=PARAM_GRID,
+                n_trials=OPTUNA_N_TRIALS,
+                seed=seed,
+            ),
+        )
+    elif strategy == "brute":
         evaluator = BruteForceEvaluator(parallel=parallel)
     elif strategy == "optuna":
         evaluator = OptunaContinuousEvaluator(
-            param_grid=PARAM_GRID, n_trials=TRIALS, seed=seed
+            param_grid=PARAM_GRID, n_trials=OPTUNA_N_TRIALS, seed=seed
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
@@ -487,51 +581,50 @@ def get_default_solver(
 
 
 class Solver:
-    def __init__(
-        self, *, evaluator: PatternEvaluator, parallel: bool = True
-    ) -> None:
-        self.parallel = parallel
+    def __init__(self, *, evaluator: PatternEvaluator, parallel: bool = True):
         self._evaluator = evaluator
+        self.parallel = parallel
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
         """
         Solves the tree placement problem for the specified n-tree sizes.
-
-        Warm-starts Optuna across increasing N.
         """
 
-        if isinstance(self._evaluator, OptunaContinuousEvaluator):
-            n_trees: list[NTree] = []
-            warm_patterns: list[TilePattern] = []
-            for tree_count in tqdm(
-                problem_sizes, total=len(problem_sizes), desc="Placing trees"
-            ):
-                evaluator = OptunaContinuousEvaluator(
-                    param_grid=self._evaluator.param_grid,
-                    n_trials=self._evaluator.n_trials,
-                    seed=self._evaluator.seed,
-                    warm_start=warm_patterns,
-                )
-                tiling = evaluator.evaluate(
-                    tree_count=tree_count, construct=self._construct_tiling
-                )
-
-                warm_patterns = list(
-                    evaluator.elite_patterns() or (tiling.pattern,)
-                )
-
-                n_trees.append(
-                    tiling.pattern.build_n_tree(tiling.positions).take_first(
-                        tree_count
-                    )
-                )
-        else:
+        if self._evaluator.execution_mode == "parallel":
             n_trees = list(
                 _map(
                     self._solve_for_tree_count,
                     problem_sizes,
                     parallel=self.parallel,
                     desc="Placing trees",
+                )
+            )
+            return Solution(n_trees=tuple(n_trees))
+
+        # --- sequential (warm-start capable) ---
+        n_trees: list[NTree] = []
+        warm_patterns: Sequence[TilePattern] = ()
+
+        evaluator = self._evaluator
+        warm_capable = isinstance(evaluator, WarmStartCapable)
+
+        for tree_count in tqdm(
+            problem_sizes, total=len(problem_sizes), desc="Placing trees"
+        ):
+            if warm_capable:
+                evaluator.warm_start(warm_patterns)
+
+            tiling = evaluator.evaluate(
+                tree_count=tree_count,
+                construct=self._construct_tiling,
+            )
+
+            if warm_capable:
+                warm_patterns = evaluator.elite_patterns() or (tiling.pattern,)
+
+            n_trees.append(
+                tiling.pattern.build_n_tree(tiling.positions).take_first(
+                    tree_count
                 )
             )
 

@@ -143,7 +143,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--strategy",
-        choices=["brute", "optuna"],
+        choices=["brute", "optuna", "hybrid"],
         default="brute",
         help="Solver strategy to use (default: brute)",
     )
