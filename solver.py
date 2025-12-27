@@ -114,6 +114,20 @@ class TileConfig:
     tree_specs: tuple[TreeSpec, ...]
     relations: tuple[RelativeTransform, ...]
 
+    @classmethod
+    def from_params(
+        cls, angle_1: Decimal, angle_2: Decimal, direction: Decimal
+    ) -> "TileConfig":
+        """
+        Construct a TileConfig on demand from Decimal parameters.
+        """
+        return cls(
+            tree_specs=(TreeSpec(angle=angle_1), TreeSpec(angle=angle_2)),
+            relations=(
+                RelativeTransform(from_idx=0, to_idx=1, direction=direction),
+            ),
+        )
+
     def build_composite_n_tree(self) -> NTree:
         """
         Build a composite NTree using TreeSpec and RelativeTransform.
@@ -240,25 +254,26 @@ class TileMetrics:
 class TilePattern:
     config: TileConfig
     metrics: TileMetrics
+    base_n_tree: NTree
 
     @classmethod
-    def from_config(cls, config: TileConfig) -> "TilePattern":
+    @lru_cache(maxsize=20_000)
+    def from_tile_config(cls, config: TileConfig) -> "TilePattern":
         base_n_tree = config.build_composite_n_tree()
         metrics = TileMetrics.from_n_tree(base_n_tree)
-        return cls(config=config, metrics=metrics)
+        return cls(config=config, metrics=metrics, base_n_tree=base_n_tree)
 
     def build_n_tree(self, positions: Iterable[tuple[int, int]]) -> NTree:
         """
         Build a global NTree by placing translated copies of the composite
         tile NTree at each grid position.
         """
-        base_tile = self.config.build_composite_n_tree()
         result_trees: list[ChristmasTree] = []
 
         for col, row in positions:
             dx, dy = self.metrics.coordinates(col, row)
 
-            for tree in base_tile.trees:
+            for tree in self.base_n_tree.trees:
                 result_trees.append(
                     ChristmasTree(
                         center_x=tree.center_x + dx,
@@ -294,28 +309,30 @@ class BruteForceEvaluator(PatternEvaluator):
     def precompute_patterns(
         cls, *, parallel: bool = True
     ) -> tuple[TilePattern, ...]:
-        configs = cls._build_configs()
+        tile_configs = cls._build_tile_configs()
         return _map(
-            TilePattern.from_config,
-            configs,
+            TilePattern.from_tile_config,
+            tile_configs,
             parallel=parallel,
             desc="Pre-computing tile patterns",
         )
 
     @classmethod
-    def _build_configs(cls) -> tuple[TileConfig, ...]:
+    def _build_tile_configs(cls) -> tuple[TileConfig, ...]:
         param_grid = {
-            p: tuple(
+            param_name: tuple(
                 Decimal(v)
-                for v in range(int(r.start), int(r.end) + 1, int(r.step))
+                for v in range(
+                    int(decimal_range.start),
+                    int(decimal_range.end) + 1,
+                    int(decimal_range.step),
+                )
             )
-            for p, r in PARAM_GRID.items()
+            for param_name, decimal_range in PARAM_GRID.items()
         }
         return tuple(
-            tile_config_factory(
-                angle_1=params["angle_1"],
-                angle_2=params["angle_2"],
-                direction=params["direction_12"],
+            TileConfig.from_params(
+                params["angle_1"], params["angle_2"], params["direction_12"]
             )
             for params in expand_param_grid(param_grid)
         )
@@ -331,29 +348,6 @@ class BruteForceEvaluator(PatternEvaluator):
 
         assert best is not None
         return best
-
-
-def tile_config_factory(
-    angle_1: Decimal, angle_2: Decimal, direction: Decimal
-) -> TileConfig:
-    """
-    Construct a TileConfig on demand from Decimal parameters.
-    """
-    return TileConfig(
-        tree_specs=(TreeSpec(angle=angle_1), TreeSpec(angle=angle_2)),
-        relations=(
-            RelativeTransform(from_idx=0, to_idx=1, direction=direction),
-        ),
-    )
-
-
-@lru_cache(maxsize=20_000)
-def cached_tile_pattern(
-    angle_1: Decimal, angle_2: Decimal, direction: Decimal
-) -> TilePattern:
-    return TilePattern.from_config(
-        tile_config_factory(angle_1, angle_2, direction)
-    )
 
 
 class OptunaContinuousEvaluator(PatternEvaluator):
@@ -404,10 +398,9 @@ class OptunaContinuousEvaluator(PatternEvaluator):
                     float(self.param_grid["direction_12"].end),
                 )
             )
-
-            # Generate TilePattern on demand
-            pattern = cached_tile_pattern(angle_1, angle_2, direction_12)
-            tiling = construct(tree_count, pattern)
+            tile_config = TileConfig.from_params(angle_1, angle_2, direction_12)
+            tile_pattern = TilePattern.from_tile_config(tile_config)
+            tiling = construct(tree_count, tile_pattern)
 
             if best is None or tiling.side < best.side:
                 best = tiling
