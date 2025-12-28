@@ -40,11 +40,11 @@ class DecimalRange:
 
 
 PARAM_GRID = {
-    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("30")),
-    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("30")),
-    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("30")),
+    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
+    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
+    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
 }
-OPTUNA_N_TRIALS = 50
+OPTUNA_N_TRIALS = 200
 
 
 class _SizedContainer(Protocol[T_co]):
