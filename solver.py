@@ -23,7 +23,7 @@ from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
 from solution import Solution
-from tree import ChristmasTree, GeometryAdapter, NTree, detect_overlap
+from trees import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from tree import NTree, ParticipantVisibleError
+from trees import NTree, ParticipantVisibleError
 
 
 @dataclass(frozen=True)

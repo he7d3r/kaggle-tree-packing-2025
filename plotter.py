@@ -13,7 +13,7 @@ from shapely import Polygon
 from tqdm import tqdm
 
 from solution import Solution
-from tree import ChristmasTree, NTree, from_float
+from trees import ChristmasTree, NTree, from_float
 
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
