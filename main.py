@@ -1,5 +1,7 @@
+import argparse
 import cProfile
 import glob
+import logging
 import os
 import pstats
 import subprocess
@@ -7,19 +9,19 @@ import sys
 from contextlib import contextmanager
 from datetime import datetime
 
-import mlflow
-
-from solution import Solution
-
 # Force matplotlib to use a non-GUI backend BEFORE any imports
 os.environ["MPLBACKEND"] = "Agg"  # Non-interactive backend
 os.environ["MATPLOTLIB_BACKEND"] = "Agg"
-
-import argparse
-import logging
-
 from plotter import Plotter
+from solution import Solution
 from solver import get_default_solver
+
+try:
+    import mlflow
+
+    MLFLOW_AVAILABLE = True
+except ImportError:
+    MLFLOW_AVAILABLE = False
 
 DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
@@ -200,6 +202,8 @@ def display_notebook_images():
 
 def main() -> None:
     args = parse_args()
+    if args.mlflow and not MLFLOW_AVAILABLE:
+        raise RuntimeError("MLflow not installed")
 
     # If analyze flag is set, run analysis and exit
     if args.analyze:
