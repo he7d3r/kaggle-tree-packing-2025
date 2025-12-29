@@ -27,7 +27,7 @@ from trees import ChristmasTree, GeometryAdapter, NTree, detect_overlap
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-BISECTION_TOLERANCE = Decimal("0.000005")
+BISECTION_TOLERANCE = Decimal("0.00005")
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 
@@ -40,9 +40,9 @@ class DecimalRange:
 
 
 PARAM_GRID = {
-    "angle_1": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
+    "angle_1": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
     "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
-    "direction_12": DecimalRange(Decimal("0"), Decimal("90"), Decimal("5")),
+    "direction_12": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
 }
 OPTUNA_N_TRIALS = 200
 
