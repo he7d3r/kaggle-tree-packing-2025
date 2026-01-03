@@ -241,7 +241,6 @@ class TileMetrics:
         width, height = n_tree.sides
         geometry = unary_union(n_tree.polygons)
 
-        # Use ChristmasTree.TOLERANCE as single source of truth
         tolerance = ChristmasTree.TOLERANCE
 
         # Find minimal horizontal offset (dx)
