@@ -162,6 +162,7 @@ class TileConfig:
         )
 
         trees = [base_tree]
+        placed_geometries = [base_tree.polygon]
 
         for rel in self.relations:
             ref_tree = trees[rel.from_idx]
@@ -175,28 +176,31 @@ class TileConfig:
             uy = math.sin(theta)
 
             tgt_geom = target.polygon
-            placed_geometries = [t.polygon for t in trees]
 
             def collision_fn(offset: float) -> bool:
                 moved = affinity.translate(
-                    tgt_geom, xoff=offset * ux, yoff=offset * uy
+                    tgt_geom,
+                    xoff=ref_tree.center_x + offset * ux,
+                    yoff=ref_tree.center_y + offset * uy,
                 )
                 return any(detect_overlap(moved, g) for g in placed_geometries)
 
+            safe_upper_bound = max(ref_tree.side_length, target.side_length) * 2
             offset = _bisect_offset(
                 lower_bound=0.0,
-                upper_bound=max(ref_tree.side_length, target.side_length) * 2,
+                upper_bound=safe_upper_bound,
                 collision_fn=collision_fn,
                 tolerance=BISECTION_TOLERANCE,
             )
 
-            trees.append(
-                ChristmasTree(
-                    center_x=ref_tree.center_x + offset * ux,
-                    center_y=ref_tree.center_y + offset * uy,
-                    angle=target.angle,
-                )
+            new_tree = ChristmasTree(
+                center_x=ref_tree.center_x + offset * ux,
+                center_y=ref_tree.center_y + offset * uy,
+                angle=target.angle,
             )
+
+            trees.append(new_tree)
+            placed_geometries.append(new_tree.polygon)
 
         return NTree.from_trees(tuple(trees))
 
