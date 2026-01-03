@@ -262,7 +262,10 @@ def main() -> None:
         else:
             solution.to_dataframe().to_csv(OUTPUT_FILE)
             logger.info("Submission saved to %s.", OUTPUT_FILE)
-            solution = Solution.from_csv(OUTPUT_FILE)
+            reloaded_solution = Solution.from_csv(OUTPUT_FILE)
+            assert reloaded_solution == solution, (
+                f"Reloaded solution differs:\n{solution=}\n{reloaded_solution=}"
+            )
             logger.info("Submission reloaded from %s.", OUTPUT_FILE)
 
         score = solution.score()

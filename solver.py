@@ -26,7 +26,6 @@ from trees import ChristmasTree, NTree, detect_overlap
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-BISECTION_TOLERANCE = 0.00005
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 
@@ -190,7 +189,7 @@ class TileConfig:
                 lower_bound=0.0,
                 upper_bound=safe_upper_bound,
                 collision_fn=collision_fn,
-                tolerance=BISECTION_TOLERANCE,
+                tolerance=ChristmasTree.TOLERANCE,
             )
 
             new_tree = ChristmasTree(
@@ -242,24 +241,27 @@ class TileMetrics:
         width, height = n_tree.sides
         geometry = unary_union(n_tree.polygons)
 
+        # Use ChristmasTree.TOLERANCE as single source of truth
+        tolerance = ChristmasTree.TOLERANCE
+
         # Find minimal horizontal offset (dx)
         dx = _bisect_offset(
             lower_bound=0.0,
             upper_bound=width,
             collision_fn=partial(_has_horizontal_collision, geometry),
-            tolerance=BISECTION_TOLERANCE,
+            tolerance=tolerance,
         )
         # Round up to tolerance to ensure no collisions
-        dx = math.ceil(dx / BISECTION_TOLERANCE) * BISECTION_TOLERANCE
+        dx = math.ceil(dx / tolerance) * tolerance
 
         # Find minimal vertical offset (dy)
         dy = _bisect_offset(
             lower_bound=0.0,
             upper_bound=height,
             collision_fn=partial(_has_vertical_collision, geometry, dx),
-            tolerance=BISECTION_TOLERANCE,
+            tolerance=tolerance,
         )
-        dy = math.ceil(dy / BISECTION_TOLERANCE) * BISECTION_TOLERANCE
+        dy = math.ceil(dy / tolerance) * tolerance
 
         return cls(width=width, height=height, dx=dx, dy=dy)
 

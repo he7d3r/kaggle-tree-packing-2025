@@ -93,8 +93,20 @@ class ChristmasTree(BoundedGeometryMixin):
     center_y: float = 0.0
     angle: float = 0.0
 
+    DECIMAL_PLACES: int = 6
+    TOLERANCE: float = 10 ** (-DECIMAL_PLACES)  # 0.000001
+
     def __post_init__(self):
-        """Validate tree position and angle upon initialization."""
+        """Round coordinates and validate tree upon initialization."""
+        object.__setattr__(
+            self, "center_x", round(self.center_x, self.DECIMAL_PLACES)
+        )
+        object.__setattr__(
+            self, "center_y", round(self.center_y, self.DECIMAL_PLACES)
+        )
+        object.__setattr__(
+            self, "angle", round(self.angle, self.DECIMAL_PLACES)
+        )
         self._validate_limits()
         self._validate_angle()
 
