@@ -1,5 +1,4 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from decimal import Decimal
 from functools import partial
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, TypeVar
@@ -9,17 +8,18 @@ import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
 from numpy.typing import NDArray
-from shapely import Polygon
 from tqdm import tqdm
 
 from solution import Solution
-from trees import ChristmasTree, NTree, from_float
+from trees import ChristmasTree, NTree
 
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 
 
 class _SizedContainer(Protocol[T_co]):
+    """Protocol for sized iterable containers."""
+
     def __iter__(self) -> Iterator[T_co]: ...
     def __len__(self) -> int: ...
 
@@ -32,6 +32,7 @@ def _for_each(
     desc: str,
     max_workers: int | None = None,
 ) -> None:
+    """Execute function on items with optional parallel processing."""
     if not parallel:
         for item in tqdm(items, desc=desc):
             fn(*item)
@@ -50,10 +51,17 @@ def _plot_single_n_tree_task(
     n_tree: NTree,
     output_path: Path,
 ) -> None:
+    """Task wrapper for parallel plotting."""
     plotter._plot_single_n_tree(n_tree, output_path)
 
 
 class Plotter:
+    """
+    Plotter for visualizing tree placement solutions.
+
+    Supports both sequential and parallel plotting of multiple configurations.
+    """
+
     def __init__(
         self,
         output_dir: Path = Path("images"),
@@ -67,9 +75,9 @@ class Plotter:
         Parameters
         ----------
         output_dir : Path
-            Directory where the plot should be saved. Default is 'images'.
+            Directory where plots should be saved. Default is 'images'.
         filename_format : str
-            Format string for filenames.
+            Format string for filenames using tree count.
         parallel : bool
             Whether to use parallel processing. Default is True.
         max_workers : Optional[int]
@@ -90,7 +98,7 @@ class Plotter:
         Parameters
         ----------
         solution : Solution
-            The solution containing n_trees.
+            The solution containing n_trees to plot.
         filter_fn : callable, optional
             A function taking a single n_tree and returning True/False.
             If None, defaults to plotting all n-trees.
@@ -122,7 +130,7 @@ class Plotter:
         self, submission_file: str = "submission.csv"
     ) -> None:
         """
-        Create a simple line plot showing scores for each n-tree configuration.
+        Create a line plot showing scores for each n-tree configuration.
 
         Parameters
         ----------
@@ -137,9 +145,9 @@ class Plotter:
         for n_tree_obj in solution.n_trees:
             n_trees.append(n_tree_obj.tree_count)
             try:
-                scores.append(float(n_tree_obj.score))
+                scores.append(n_tree_obj.score)
             except Exception as e:
-                print(e)
+                print(f"Error computing score: {e}")
                 scores.append(np.nan)
 
         # Create the plot
@@ -173,8 +181,7 @@ class Plotter:
         self, submission_files: list[str]
     ) -> None:
         """
-        Create a multi-line plot showing scores for each n-tree configuration
-        from multiple submission files.
+        Create a multi-line plot showing scores for multiple submission files.
 
         Parameters
         ----------
@@ -197,9 +204,9 @@ class Plotter:
                 for n_tree_obj in solution.n_trees:
                     n_trees.append(n_tree_obj.tree_count)
                     try:
-                        scores.append(float(n_tree_obj.score))
+                        scores.append(n_tree_obj.score)
                     except Exception as e:
-                        print(e)
+                        print(f"Error computing score: {e}")
                         scores.append(np.nan)
 
                 # Plot the line for this file
@@ -248,10 +255,10 @@ class Plotter:
     def _plot_single_n_tree(self, n_tree: NTree, output_path: Path) -> None:
         """
         Plot a single n_tree and save to output_path.
-        This method is designed to be pickleable for parallel execution.
 
-        Note: We need to create a new figure for each call since matplotlib
-        figures are not thread/process safe.
+        This method is designed to be pickleable for parallel execution.
+        Creates a new figure for each call since matplotlib figures
+        are not thread/process safe.
         """
         num_trees = n_tree.tree_count
         fig, ax = plt.subplots(figsize=(6, 6))
@@ -266,9 +273,9 @@ class Plotter:
         minx, miny, _, _ = n_tree.bounds
 
         bounding_square = Rectangle(
-            (float(minx), float(miny)),
-            float(side_length),
-            float(side_length),
+            (minx, miny),
+            side_length,
+            side_length,
             fill=False,
             edgecolor="red",
             linewidth=2,
@@ -276,9 +283,9 @@ class Plotter:
         )
         ax.add_patch(bounding_square)
 
-        padding = Decimal("0.5")
-        ax.set_xlim(float(minx - padding), float(minx + side_length + padding))
-        ax.set_ylim(float(miny - padding), float(miny + side_length + padding))
+        padding = 0.5
+        ax.set_xlim(minx - padding, minx + side_length + padding)
+        ax.set_ylim(miny - padding, miny + side_length + padding)
         ax.set_aspect("equal", adjustable="box")
         ax.axis("off")
         plt.title(f"{num_trees} Trees: {side_length:.12f}")
@@ -289,11 +296,7 @@ class Plotter:
     def _plot_tree(
         self, tree: ChristmasTree, ax: Axes, color: NDArray[np.float64]
     ) -> None:
-        x, y = _polygon_to_xy(tree.polygon)
-        ax.plot([float(v) for v in x], [float(v) for v in y], color=color)
+        """Plot a single tree on the given axes."""
+        x, y = tree.polygon.exterior.xy
+        ax.plot(x, y, color=color)
         ax.fill(x, y, alpha=0.5, color=color)
-
-
-def _polygon_to_xy(polygon: Polygon) -> tuple[list[Decimal], list[Decimal]]:
-    xs, ys = polygon.exterior.xy
-    return ([from_float(x) for x in xs], [from_float(y) for y in ys])

@@ -48,7 +48,7 @@ class Solution:
     def from_dataframe(df: pd.DataFrame) -> "Solution":
         """Populates the Solution object from a DataFrame."""
         Solution.validate_dataframe(df)
-        df = df.apply(lambda col: col.str.slice(1))
+        df = df.apply(lambda col: col.str.slice(1)).astype(float)
         n_trees = Solution.n_trees_from_dataframe(df)
         return Solution(n_trees=n_trees)
 

@@ -1,7 +1,6 @@
 import math
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from decimal import ROUND_CEILING, Decimal
 from functools import lru_cache, partial
 from itertools import product
 from typing import (
@@ -18,36 +17,52 @@ from typing import (
 )
 
 import optuna
-from shapely import unary_union
+from shapely import affinity, unary_union
 from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
 from solution import Solution
-from trees import ChristmasTree, GeometryAdapter, NTree, detect_overlap
+from trees import ChristmasTree, NTree, detect_overlap
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-BISECTION_TOLERANCE = Decimal("0.00005")
+BISECTION_TOLERANCE = 0.00005
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 
 
 @dataclass(frozen=True)
-class DecimalRange:
-    start: Decimal
-    end: Decimal
-    step: Decimal = Decimal("1")
+class FloatRange:
+    """Range specification for float parameters."""
+
+    start: float
+    end: float
+    step: float = 1.0
+
+    def __iter__(self) -> Iterator[float]:
+        """Generate values without accumulating rounding errors."""
+        if self.step <= 0:
+            raise ValueError("step must be positive")
+
+        n_steps = int((self.end - self.start) / self.step) + 1
+        for i in range(n_steps):
+            value = self.start + i * self.step
+            if value > self.end:
+                break
+            yield value
 
 
 PARAM_GRID = {
-    "angle_1": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
-    "angle_2": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
-    "direction_12": DecimalRange(Decimal("0"), Decimal("180"), Decimal("5")),
+    "angle_1": FloatRange(0.0, 180.0, 5.0),
+    "angle_2": FloatRange(0.0, 180.0, 5.0),
+    "direction_12": FloatRange(0.0, 180.0, 5.0),
 }
 OPTUNA_N_TRIALS = 200
 
 
 class _SizedContainer(Protocol[T_co]):
+    """Protocol for sized iterable containers."""
+
     def __iter__(self) -> Iterator[T_co]: ...
     def __len__(self) -> int: ...
 
@@ -59,6 +74,7 @@ def _map(
     parallel: bool,
     desc: str,
 ) -> tuple[R, ...]:
+    """Map function over items with optional parallelization."""
     if not parallel:
         return tuple(
             tqdm((fn(item) for item in items), total=len(items), desc=desc)
@@ -69,11 +85,11 @@ def _map(
 
 
 def _bisect_offset(
-    lower_bound: Decimal,
-    upper_bound: Decimal,
-    collision_fn: Callable[[Decimal], bool],
-    tolerance: Decimal,
-) -> Decimal:
+    lower_bound: float,
+    upper_bound: float,
+    collision_fn: Callable[[float], bool],
+    tolerance: float,
+) -> float:
     """Bisection search for minimal offset without collisions."""
     low = lower_bound
     high = upper_bound
@@ -95,18 +111,18 @@ def _bisect_offset(
 
 @dataclass(frozen=True)
 class TreeSpec:
-    """Immutable specification of a single tree in a Tile pattern."""
+    """Immutable specification of a single tree in a tile pattern."""
 
-    angle: Decimal  # degrees
+    angle: float  # degrees
 
 
 @dataclass(frozen=True)
 class RelativeTransform:
-    """Immutable relative transformation between two trees in a Tile pattern."""
+    """Immutable relative transformation between two trees in a tile pattern."""
 
     from_idx: int
     to_idx: int
-    direction: Decimal  # degrees
+    direction: float  # degrees
 
 
 @dataclass(frozen=True)
@@ -118,11 +134,9 @@ class TileConfig:
 
     @classmethod
     def from_params(
-        cls, angle_1: Decimal, angle_2: Decimal, direction: Decimal
+        cls, angle_1: float, angle_2: float, direction: float
     ) -> "TileConfig":
-        """
-        Construct a TileConfig on demand from Decimal parameters.
-        """
+        """Construct a TileConfig from float parameters."""
         return cls(
             tree_specs=(TreeSpec(angle=angle_1), TreeSpec(angle=angle_2)),
             relations=(
@@ -134,18 +148,16 @@ class TileConfig:
         """
         Build a composite NTree using TreeSpec and RelativeTransform.
 
-        - Tree 0 is anchored at the origin.
-        - Other trees are positioned relative to it using bisection
-        along a direction ray.
+        Tree 0 is anchored at the origin. Other trees are positioned
+        relative to it using bisection along a direction ray.
         """
-
         if not self.tree_specs:
             raise ValueError("TileConfig must contain at least one TreeSpec")
 
         # Base tree at the origin
         base_tree = ChristmasTree(
-            center_x=Decimal(0),
-            center_y=Decimal(0),
+            center_x=0.0,
+            center_y=0.0,
             angle=self.tree_specs[0].angle,
         )
 
@@ -157,23 +169,22 @@ class TileConfig:
             # Create target tree at origin (rotation only)
             target = ChristmasTree(angle=self.tree_specs[rel.to_idx].angle)
 
-            # --- direction unit vector ---
-            theta = float(rel.direction * Decimal(math.pi) / Decimal(180))
-            ux = Decimal(math.cos(theta))
-            uy = Decimal(math.sin(theta))
+            # Direction unit vector
+            theta = math.radians(rel.direction)
+            ux = math.cos(theta)
+            uy = math.sin(theta)
 
             tgt_geom = target.polygon
-
             placed_geometries = [t.polygon for t in trees]
 
-            def collision_fn(offset: Decimal) -> bool:
-                moved = GeometryAdapter.translate(
-                    tgt_geom, dx=offset * ux, dy=offset * uy
+            def collision_fn(offset: float) -> bool:
+                moved = affinity.translate(
+                    tgt_geom, xoff=offset * ux, yoff=offset * uy
                 )
                 return any(detect_overlap(moved, g) for g in placed_geometries)
 
             offset = _bisect_offset(
-                lower_bound=Decimal("0"),
+                lower_bound=0.0,
                 upper_bound=max(ref_tree.side_length, target.side_length) * 2,
                 collision_fn=collision_fn,
                 tolerance=BISECTION_TOLERANCE,
@@ -190,70 +201,78 @@ class TileConfig:
         return NTree.from_trees(tuple(trees))
 
 
-def _has_horizontal_collision(geometry: BaseGeometry, offset: Decimal) -> bool:
+def _has_horizontal_collision(geometry: BaseGeometry, offset: float) -> bool:
     """Test if horizontal offset causes collision."""
-    moved_x = GeometryAdapter.translate(geometry, dx=offset)
+    moved_x = affinity.translate(geometry, xoff=offset)
     return detect_overlap(moved_x, geometry)
 
 
 def _has_vertical_collision(
-    geometry: BaseGeometry, dx: Decimal, offset: Decimal
+    geometry: BaseGeometry, dx: float, offset: float
 ) -> bool:
     """Test vertical offset collision considering horizontal neighbors."""
-    moved_y = GeometryAdapter.translate(geometry, dy=offset)
+    moved_y = affinity.translate(geometry, yoff=offset)
     if detect_overlap(moved_y, geometry):
         return True
 
-    moved_x = GeometryAdapter.translate(geometry, dx=dx)
+    moved_x = affinity.translate(geometry, xoff=dx)
     if detect_overlap(moved_x, moved_y):
         return True
 
-    moved_xy = GeometryAdapter.translate(geometry, dx=dx, dy=offset)
+    moved_xy = affinity.translate(geometry, xoff=dx, yoff=offset)
     return detect_overlap(moved_xy, geometry)
 
 
 @dataclass(frozen=True)
 class TileMetrics:
-    """Hashable/frozen class to store pre-computed tile and area parameters."""
+    """Hashable/frozen class to store pre-computed expensive metrics."""
 
-    width: Decimal
-    height: Decimal
-    dx: Decimal
-    dy: Decimal
+    width: float
+    height: float
+    dx: float
+    dy: float
 
     @classmethod
     def from_n_tree(cls, n_tree: NTree) -> "TileMetrics":
+        """Compute tile metrics from an NTree."""
         width, height = n_tree.sides
         geometry = unary_union(n_tree.polygons)
 
         # Find minimal horizontal offset (dx)
         dx = _bisect_offset(
-            lower_bound=Decimal("0.0"),
+            lower_bound=0.0,
             upper_bound=width,
             collision_fn=partial(_has_horizontal_collision, geometry),
             tolerance=BISECTION_TOLERANCE,
-        ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
+        )
+        # Round up to tolerance to ensure no collisions
+        dx = math.ceil(dx / BISECTION_TOLERANCE) * BISECTION_TOLERANCE
 
         # Find minimal vertical offset (dy)
         dy = _bisect_offset(
-            lower_bound=Decimal("0.0"),
+            lower_bound=0.0,
             upper_bound=height,
             collision_fn=partial(_has_vertical_collision, geometry, dx),
             tolerance=BISECTION_TOLERANCE,
-        ).quantize(BISECTION_TOLERANCE, rounding=ROUND_CEILING)
+        )
+        dy = math.ceil(dy / BISECTION_TOLERANCE) * BISECTION_TOLERANCE
 
         return cls(width=width, height=height, dx=dx, dy=dy)
 
-    def coordinates(self, col: int, row: int) -> tuple[Decimal, Decimal]:
-        return Decimal(col) * self.dx, Decimal(row) * self.dy
+    def coordinates(self, col: int, row: int) -> tuple[float, float]:
+        """Return coordinates for a given grid position."""
+        return col * self.dx, row * self.dy
 
-    def bounding_square_side(self, n_cols: int, n_rows: int) -> Decimal:
+    def bounding_square_side(self, n_cols: int, n_rows: int) -> float:
+        """Compute bounding square side for given grid dimensions."""
         x, y = self.coordinates(n_cols, n_rows)
         return max(x + self.width, y + self.height)
 
 
 @dataclass(frozen=True)
 class TilePattern:
+    """Complete tile pattern with configuration, metrics, and base NTree."""
+
     config: TileConfig
     metrics: TileMetrics
     base_n_tree: NTree
@@ -261,6 +280,7 @@ class TilePattern:
     @classmethod
     @lru_cache(maxsize=20_000)
     def from_tile_config(cls, config: TileConfig) -> "TilePattern":
+        """Create a TilePattern from a TileConfig."""
         base_n_tree = config.build_composite_n_tree()
         metrics = TileMetrics.from_n_tree(base_n_tree)
         return cls(config=config, metrics=metrics, base_n_tree=base_n_tree)
@@ -289,13 +309,17 @@ class TilePattern:
 
 @dataclass(frozen=True)
 class Tiling:
+    """Complete tiling with pattern, positions, and bounding side."""
+
     pattern: TilePattern
     positions: tuple[tuple[int, int], ...]
-    side: Decimal
+    side: float
 
 
 @runtime_checkable
 class WarmStartCapable(Protocol):
+    """Protocol for evaluators that support warm-starting."""
+
     def warm_start(self, patterns: Sequence[TilePattern]) -> None: ...
 
 
@@ -304,26 +328,37 @@ class PatternEvaluator:
 
     def evaluate(
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
-    ) -> Tiling: ...
+    ) -> Tiling:
+        """Evaluate patterns and return best tiling."""
+        ...
 
     def elite_patterns(self) -> Sequence[TilePattern]:
-        """Patterns recommended for warm-starting the next solve step."""
+        """Return patterns recommended for warm-starting the next solve step."""
         return ()
 
     @property
-    def execution_mode(self) -> Literal["sequential", "parallel"]: ...
+    def execution_mode(self) -> Literal["sequential", "parallel"]:
+        """Return execution mode for this evaluator."""
+        ...
 
 
 class BruteForceEvaluator(PatternEvaluator):
+    """Brute force evaluator trying all discrete parameter combinations."""
+
     def __init__(self, parallel: bool = True, top_k: int = 5) -> None:
         self.patterns = self.precompute_patterns(parallel=parallel)
         self.top_k = top_k
         self._elite_patterns: tuple[TilePattern, ...] = ()
 
+    @property
+    def execution_mode(self) -> Literal["parallel"]:
+        return "parallel"
+
     @classmethod
     def precompute_patterns(
         cls, *, parallel: bool = True
     ) -> tuple[TilePattern, ...]:
+        """Precompute all tile patterns from parameter grid."""
         tile_configs = cls._build_tile_configs()
         return _map(
             TilePattern.from_tile_config,
@@ -334,16 +369,10 @@ class BruteForceEvaluator(PatternEvaluator):
 
     @classmethod
     def _build_tile_configs(cls) -> tuple[TileConfig, ...]:
+        """Build all tile configurations from parameter grid."""
         param_grid = {
-            param_name: tuple(
-                Decimal(v)
-                for v in range(
-                    int(decimal_range.start),
-                    int(decimal_range.end) + 1,
-                    int(decimal_range.step),
-                )
-            )
-            for param_name, decimal_range in PARAM_GRID.items()
+            param_name: tuple(float_range)
+            for param_name, float_range in PARAM_GRID.items()
         }
         return tuple(
             TileConfig.from_params(
@@ -355,6 +384,7 @@ class BruteForceEvaluator(PatternEvaluator):
     def evaluate(
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling:
+        """Evaluate all patterns and return the best one."""
         best_k: list[Tiling] = []
 
         for pattern in self.patterns:
@@ -379,7 +409,7 @@ class OptunaContinuousEvaluator(PatternEvaluator):
     def __init__(
         self,
         *,
-        param_grid: Mapping[str, DecimalRange],
+        param_grid: Mapping[str, FloatRange],
         n_trials: int,
         seed: int,
         warm_start: Sequence[TilePattern] = (),
@@ -390,19 +420,18 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         self.seed = seed
         self.top_k = top_k
 
-        # patterns injected by Solver before evaluate()
+        # Patterns injected by Solver before evaluate()
         self._warm_patterns: tuple[TilePattern, ...] = tuple(warm_start)
 
-        # patterns discovered in the last run
+        # Patterns discovered in the last run
         self._elite_patterns: tuple[TilePattern, ...] = ()
-
-    # -------- public API --------
 
     @property
     def execution_mode(self) -> Literal["sequential"]:
         return "sequential"
 
     def warm_start(self, patterns: Sequence[TilePattern]) -> None:
+        """Set warm-start patterns for the next evaluation."""
         self._warm_patterns = tuple(patterns)
 
     def elite_patterns(self) -> Sequence[TilePattern]:
@@ -427,44 +456,37 @@ class OptunaContinuousEvaluator(PatternEvaluator):
 
         best = evaluator._run(tree_count, construct)
 
-        # propagate elite patterns back to this instance
+        # Propagate elite patterns back to this instance
         self._elite_patterns = evaluator._elite_patterns
 
         return best
-
-    # -------- internal implementation --------
 
     def _run(
         self,
         tree_count: int,
         construct: Callable[[int, TilePattern], Tiling],
     ) -> Tiling:
+        """Internal implementation of evaluation."""
         best: Tiling | None = None
         best_k: list[Tiling] = []
 
         def objective(trial: optuna.Trial) -> float:
             nonlocal best
 
-            angle_1 = Decimal(
-                trial.suggest_float(
-                    "angle_1",
-                    float(self.param_grid["angle_1"].start),
-                    float(self.param_grid["angle_1"].end),
-                )
+            angle_1 = trial.suggest_float(
+                "angle_1",
+                self.param_grid["angle_1"].start,
+                self.param_grid["angle_1"].end,
             )
-            angle_2 = Decimal(
-                trial.suggest_float(
-                    "angle_2",
-                    float(self.param_grid["angle_2"].start),
-                    float(self.param_grid["angle_2"].end),
-                )
+            angle_2 = trial.suggest_float(
+                "angle_2",
+                self.param_grid["angle_2"].start,
+                self.param_grid["angle_2"].end,
             )
-            direction_12 = Decimal(
-                trial.suggest_float(
-                    "direction_12",
-                    float(self.param_grid["direction_12"].start),
-                    float(self.param_grid["direction_12"].end),
-                )
+            direction_12 = trial.suggest_float(
+                "direction_12",
+                self.param_grid["direction_12"].start,
+                self.param_grid["direction_12"].end,
             )
 
             tile_config = TileConfig.from_params(angle_1, angle_2, direction_12)
@@ -478,14 +500,14 @@ class OptunaContinuousEvaluator(PatternEvaluator):
             best_k.sort(key=lambda t: t.side)
             del best_k[self.top_k :]
 
-            return float(tiling.side)
+            return tiling.side
 
         study = optuna.create_study(
             sampler=optuna.samplers.TPESampler(seed=self.seed),
             direction="minimize",
         )
 
-        # enqueue warm-start trials
+        # Enqueue warm-start trials
         for pattern in self._warm_patterns:
             cfg = pattern.config
             study.enqueue_trial(
@@ -506,24 +528,31 @@ class OptunaContinuousEvaluator(PatternEvaluator):
 
 
 class HybridEvaluator(PatternEvaluator):
+    """Hybrid evaluator combining brute force and Optuna optimization."""
+
     def __init__(
         self, brute: BruteForceEvaluator, optuna: PatternEvaluator
     ) -> None:
         self.brute = brute
         self.optuna = optuna
 
+    @property
+    def execution_mode(self) -> Literal["sequential"]:
+        return "sequential"
+
     def evaluate(
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
     ) -> Tiling:
-        # 1. Generate elite patterns
+        """Evaluate using brute force then refine with Optuna."""
+        # Generate elite patterns
         self.brute.evaluate(tree_count, construct)
         warm_patterns = list(self.brute.elite_patterns())
 
-        # 2. Warm-start if supported
+        # Warm-start if supported
         if isinstance(self.optuna, WarmStartCapable):
             self.optuna.warm_start(warm_patterns)
 
-        # 3. Delegate to optuna
+        # Delegate to optuna
         return self.optuna.evaluate(tree_count, construct)
 
     def elite_patterns(self) -> Sequence[TilePattern]:
@@ -581,15 +610,14 @@ def get_default_solver(
 
 
 class Solver:
+    """Main solver for tree placement optimization."""
+
     def __init__(self, *, evaluator: PatternEvaluator, parallel: bool = True):
         self._evaluator = evaluator
         self.parallel = parallel
 
     def solve(self, problem_sizes: Sequence[int]) -> Solution:
-        """
-        Solves the tree placement problem for the specified n-tree sizes.
-        """
-
+        """Solve the tree placement problem for specified tree counts."""
         if self._evaluator.execution_mode == "parallel":
             n_trees = list(
                 _map(
@@ -601,7 +629,7 @@ class Solver:
             )
             return Solution(n_trees=tuple(n_trees))
 
-        # --- sequential (warm-start capable) ---
+        # Sequential (warm-start capable)
         n_trees: list[NTree] = []
         warm_patterns: Sequence[TilePattern] = ()
 
@@ -631,10 +659,7 @@ class Solver:
         return Solution(n_trees=tuple(n_trees))
 
     def _solve_for_tree_count(self, tree_count: int) -> NTree:
-        """
-        Solves the placement for a single tree count using the configured
-        pattern evaluation strategy.
-        """
+        """Solve placement for a single tree count."""
         best = self._evaluator.evaluate(
             tree_count=tree_count, construct=self._construct_tiling
         )
@@ -643,6 +668,7 @@ class Solver:
     def _construct_tiling(
         self, tree_count: int, pattern: TilePattern
     ) -> Tiling:
+        """Construct a tiling for given tree count and pattern."""
         metrics = pattern.metrics
 
         positions = [(0, 0)]
@@ -651,6 +677,7 @@ class Solver:
         max_row = 0
         max_col = 0
         trees_per_tile = len(pattern.config.tree_specs)
+
         while len(positions) * trees_per_tile < tree_count:
             if prev_row == max_row and prev_col == max_col:
                 # The previous tree was at the corner of a rectangle.
