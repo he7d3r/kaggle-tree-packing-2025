@@ -17,17 +17,16 @@ from typing import (
 )
 
 import optuna
-from shapely import affinity, unary_union
-from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
 
 from solution import Solution
-from trees import ChristmasTree, NTree, detect_overlap
+from trees import DECIMAL_PLACES, ChristmasTree, NTree, ParticipantVisibleError
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -57,6 +56,8 @@ PARAM_GRID = {
     "direction_12": FloatRange(0.0, 180.0, 5.0),
 }
 OPTUNA_N_TRIALS = 200
+BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
+BISECTION_MIN_CLEARANCE = 10 * BISECTION_TOLERANCE
 
 
 class _SizedContainer(Protocol[T_co]):
@@ -83,24 +84,78 @@ def _map(
         return tuple(tqdm(executor.map(fn, items), total=len(items), desc=desc))
 
 
-def _bisect_offset(
+def _bisect_minimal_valid(
     lower_bound: float,
     upper_bound: float,
-    collision_fn: Callable[[float], bool],
+    validate: Callable[[float], T | None],
     tolerance: float,
-) -> float:
-    """Bisection search for minimal offset without collisions."""
+    min_clearance: float = 0.0,
+) -> tuple[float, T]:
+    """
+    Find minimal value in [lower_bound, upper_bound] where validate succeeds.
+
+    Uses bisection search to find the smallest offset where validation
+    succeeds, ensuring a minimum clearance from the collision boundary.
+
+    Args:
+        lower_bound: Minimum offset to search (typically 0.0)
+        upper_bound: Maximum offset to search (must be valid)
+        validate: Function returning validated object if offset is valid,
+                 None if invalid (e.g., causes collision)
+        tolerance: Search precision (stop when range < tolerance)
+        min_clearance: Minimum distance the returned offset must be from the
+                      exact collision boundary, to guard against floating-point issues. Default is 0.0.
+
+    Returns:
+        (safe_offset, validated_object)
+        The offset is guaranteed to be at least `min_clearance` away from
+        the exact collision boundary.
+
+    Raises:
+        ValueError: If upper_bound is invalid or if the offset with
+                   min_clearance is invalid.
+    """
+    upper_result = validate(upper_bound)
+    if upper_result is None:
+        raise ValueError(f"Upper bound {upper_bound} is invalid.")
+
     low = lower_bound
     high = upper_bound
 
     while high - low > tolerance:
         mid = (low + high) / 2
-        if collision_fn(mid):
-            low = mid  # desired offset is in (mid, high]
+        if validate(mid) is None:
+            low = mid
         else:
-            high = mid  # desired offset is in (low, mid]
+            high = mid
 
-    return high
+    # Ensure minimum clearance from boundary
+    safe_offset = high + min_clearance
+    safe_result = validate(safe_offset)
+
+    if safe_result is None:
+        raise ValueError(
+            f"Offset {safe_offset} (bisection result {high} + clearance {min_clearance}) "
+            f"is invalid. Upper bound {upper_bound} may be insufficient."
+        )
+
+    return safe_offset, safe_result
+
+
+def _validate_trees(trees: tuple[ChristmasTree, ...]) -> NTree | None:
+    """
+    Validate a collection of trees for collisions.
+
+    Args:
+        trees: Tuple of ChristmasTree instances to validate
+
+    Returns:
+        NTree if all trees are collision-free, None if collision detected
+    """
+    try:
+        return NTree.from_trees(trees)
+    except ParticipantVisibleError:
+        return None
 
 
 # ---------------------------------------------------------------------
@@ -149,6 +204,9 @@ class TileConfig:
 
         Tree 0 is anchored at the origin. Other trees are positioned
         relative to it using bisection along a direction ray.
+
+        Each placement validates collision-free status by constructing
+        a partial NTree, whose __post_init__ validates no overlaps.
         """
         if not self.tree_specs:
             raise ValueError("TileConfig must contain at least one TreeSpec")
@@ -160,11 +218,10 @@ class TileConfig:
             angle=self.tree_specs[0].angle,
         )
 
-        trees = [base_tree]
-        placed_geometries = [base_tree.polygon]
+        current_n_tree = NTree.leaf(base_tree)
 
         for rel in self.relations:
-            ref_tree = trees[rel.from_idx]
+            ref_tree = current_n_tree.trees[rel.from_idx]
 
             # Create target tree at origin (rotation only)
             target = ChristmasTree(angle=self.tree_specs[rel.to_idx].angle)
@@ -174,56 +231,96 @@ class TileConfig:
             ux = math.cos(theta)
             uy = math.sin(theta)
 
-            tgt_geom = target.polygon
+            def validate_placement(offset: float) -> NTree | None:
+                """
+                Validate tree placement at given offset.
 
-            def collision_fn(offset: float) -> bool:
-                moved = affinity.translate(
-                    tgt_geom,
-                    xoff=ref_tree.center_x + offset * ux,
-                    yoff=ref_tree.center_y + offset * uy,
+                Returns NTree if placement is valid, None if collision occurs.
+                """
+                candidate_tree = ChristmasTree(
+                    center_x=ref_tree.center_x + offset * ux,
+                    center_y=ref_tree.center_y + offset * uy,
+                    angle=target.angle,
                 )
-                return any(detect_overlap(moved, g) for g in placed_geometries)
+                test_trees = current_n_tree.trees + (candidate_tree,)
+                return _validate_trees(test_trees)
 
             safe_upper_bound = max(ref_tree.side_length, target.side_length) * 2
-            offset = _bisect_offset(
+
+            _, validated_n_tree = _bisect_minimal_valid(
                 lower_bound=0.0,
                 upper_bound=safe_upper_bound,
-                collision_fn=collision_fn,
-                tolerance=ChristmasTree.TOLERANCE,
+                validate=validate_placement,
+                tolerance=BISECTION_TOLERANCE,
+                min_clearance=BISECTION_MIN_CLEARANCE,
             )
 
-            new_tree = ChristmasTree(
-                center_x=ref_tree.center_x + offset * ux,
-                center_y=ref_tree.center_y + offset * uy,
-                angle=target.angle,
-            )
+            # Use the validated NTree directly - no need to reconstruct
+            current_n_tree = validated_n_tree
 
-            trees.append(new_tree)
-            placed_geometries.append(new_tree.polygon)
-
-        return NTree.from_trees(tuple(trees))
+        return current_n_tree
 
 
-def _has_horizontal_collision(geometry: BaseGeometry, offset: float) -> bool:
-    """Test if horizontal offset causes collision."""
-    moved_x = affinity.translate(geometry, xoff=offset)
-    return detect_overlap(moved_x, geometry)
+def _validate_horizontal_offset(n_tree: NTree, offset: float) -> NTree | None:
+    """
+    Validate horizontal offset for tiling.
+
+    Returns translated NTree if offset is valid, None if collision occurs.
+    """
+    translated_trees = tuple(
+        ChristmasTree(
+            center_x=tree.center_x + offset,
+            center_y=tree.center_y,
+            angle=tree.angle,
+        )
+        for tree in n_tree.trees
+    )
+    return _validate_trees(n_tree.trees + translated_trees)
 
 
-def _has_vertical_collision(
-    geometry: BaseGeometry, dx: float, offset: float
-) -> bool:
-    """Test vertical offset collision considering horizontal neighbors."""
-    moved_y = affinity.translate(geometry, yoff=offset)
-    if detect_overlap(moved_y, geometry):
-        return True
+def _validate_vertical_offset(
+    n_tree: NTree, horizontal_n_tree: NTree, offset: float
+) -> NTree | None:
+    """
+    Validate vertical offset for tiling considering horizontal neighbors.
 
-    moved_x = affinity.translate(geometry, xoff=dx)
-    if detect_overlap(moved_x, moved_y):
-        return True
+    Tests collision pairs introduced by the vertical dimension:
+    1. Original ↔ Vertical (direct vertical neighbor)
+    2. Horizontal ↔ Vertical (secondary diagonal)
+    3. Original ↔ Diagonal (main diagonal)
 
-    moved_xy = affinity.translate(geometry, xoff=dx, yoff=offset)
-    return detect_overlap(moved_xy, geometry)
+    Returns NTree of vertical neighbors if valid, None if collision occurs.
+    """
+    original_trees = n_tree.trees
+
+    vertical_trees = tuple(
+        ChristmasTree(
+            center_x=tree.center_x,
+            center_y=tree.center_y + offset,
+            angle=tree.angle,
+        )
+        for tree in original_trees
+    )
+
+    if _validate_trees(original_trees + vertical_trees) is None:
+        return None
+
+    if _validate_trees(horizontal_n_tree.trees + vertical_trees) is None:
+        return None
+
+    diagonal_trees = tuple(
+        ChristmasTree(
+            center_x=tree.center_x,
+            center_y=tree.center_y + offset,
+            angle=tree.angle,
+        )
+        for tree in horizontal_n_tree.trees
+    )
+
+    if _validate_trees(original_trees + diagonal_trees) is None:
+        return None
+
+    return NTree.from_trees(vertical_trees)
 
 
 @dataclass(frozen=True)
@@ -237,30 +334,34 @@ class TileMetrics:
 
     @classmethod
     def from_n_tree(cls, n_tree: NTree) -> "TileMetrics":
-        """Compute tile metrics from an NTree."""
-        width, height = n_tree.sides
-        geometry = unary_union(n_tree.polygons)
+        """
+        Compute tile metrics from an NTree using NTree-based collision detection.
 
-        tolerance = ChristmasTree.TOLERANCE
+        Finds minimal horizontal (dx) and vertical (dy) offsets that allow
+        tiling without collisions by testing with actual NTree validation.
+        """
+        width, height = n_tree.sides
+        safe_upper_bound = max(width, height) * 2
 
         # Find minimal horizontal offset (dx)
-        dx = _bisect_offset(
+        dx, horizontal_n_tree = _bisect_minimal_valid(
             lower_bound=0.0,
-            upper_bound=width,
-            collision_fn=partial(_has_horizontal_collision, geometry),
-            tolerance=tolerance,
+            upper_bound=safe_upper_bound,
+            validate=partial(_validate_horizontal_offset, n_tree),
+            tolerance=BISECTION_TOLERANCE,
+            min_clearance=BISECTION_MIN_CLEARANCE,
         )
-        # Round up to tolerance to ensure no collisions
-        dx = math.ceil(dx / tolerance) * tolerance
 
         # Find minimal vertical offset (dy)
-        dy = _bisect_offset(
+        dy, _ = _bisect_minimal_valid(
             lower_bound=0.0,
-            upper_bound=height,
-            collision_fn=partial(_has_vertical_collision, geometry, dx),
-            tolerance=tolerance,
+            upper_bound=safe_upper_bound,
+            validate=partial(
+                _validate_vertical_offset, n_tree, horizontal_n_tree
+            ),
+            tolerance=BISECTION_TOLERANCE,
+            min_clearance=BISECTION_MIN_CLEARANCE,
         )
-        dy = math.ceil(dy / tolerance) * tolerance
 
         return cls(width=width, height=height, dx=dx, dy=dy)
 
