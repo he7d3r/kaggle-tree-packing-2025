@@ -64,18 +64,22 @@ DEFAULT_RUN_NAME = get_git_run_name()
 @contextmanager
 def profile_if(enabled: bool, filename: str = "profile_stats.prof"):
     """Context manager for conditional profiling."""
-    if enabled:
-        profiler = cProfile.Profile()
-        profiler.enable()
-        try:
-            yield
-        finally:
-            profiler.disable()
-            profiler.dump_stats(filename)
-            stats = pstats.Stats(filename)
-            stats.sort_stats(pstats.SortKey.CUMULATIVE).print_stats(20)
-    else:
+    if not enabled:
         yield
+        return
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+    try:
+        yield
+    finally:
+        profiler.disable()
+        profiler.dump_stats(filename)
+
+        stats = pstats.Stats(profiler)
+        stats.sort_stats(pstats.SortKey.CUMULATIVE).print_stats(15)
+        stats.sort_stats(pstats.SortKey.TIME).print_stats(15)
+        stats.sort_stats(pstats.SortKey.CALLS).print_stats(15)
 
 
 logger = logging.getLogger(__name__)
