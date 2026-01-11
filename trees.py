@@ -1,7 +1,7 @@
 import math
 from abc import abstractmethod
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, lru_cache
 from typing import TypeVar
 
 import pandas as pd
@@ -58,6 +58,28 @@ def _create_initial_tree_polygon() -> Polygon:
 
 
 BASE_TREE: Polygon = _create_initial_tree_polygon()
+
+
+@lru_cache(maxsize=128)
+def _get_rotation_matrix(angle: float) -> tuple[float, float, float, float]:
+    """
+    Cache rotation matrix components for a given angle.
+
+    Returns (a, b, d, e) for affine transformation matrix:
+        | a  b xoff |   | cos -sin  cx |
+        | d  e yoff | = | sin  cos  cy |
+        | 0  0   1  |   |  0    0   1  |
+
+    Args:
+        angle: Rotation angle in degrees
+
+    Returns:
+        Tuple of (cos, -sin, sin, cos) for the rotation component
+    """
+    theta = math.radians(angle)
+    cos_theta = math.cos(theta)
+    sin_theta = math.sin(theta)
+    return cos_theta, -sin_theta, sin_theta, cos_theta
 
 
 class BoundedGeometryMixin:
@@ -125,8 +147,10 @@ class ChristmasTree(BoundedGeometryMixin):
     @cached_property
     def polygon(self) -> Polygon:
         """Return the transformed polygon for this tree."""
-        poly = affinity.rotate(BASE_TREE, self.angle, origin=(0.0, 0.0))
-        return affinity.translate(poly, xoff=self.center_x, yoff=self.center_y)
+        a, b, d, e = _get_rotation_matrix(self.angle)
+        return affinity.affine_transform(
+            BASE_TREE, [a, b, d, e, self.center_x, self.center_y]
+        )
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
