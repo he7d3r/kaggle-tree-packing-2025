@@ -391,7 +391,7 @@ class TilePattern:
         metrics = TileMetrics.from_n_tree(base_n_tree)
         return cls(config=config, metrics=metrics, base_n_tree=base_n_tree)
 
-    def build_n_tree(self, positions: Iterable[tuple[int, int]]) -> NTree:
+    def build_n_tree(self, positions: tuple[tuple[int, int], ...]) -> NTree:
         """
         Build a global NTree by placing translated copies of the composite
         tile NTree at each grid position.
