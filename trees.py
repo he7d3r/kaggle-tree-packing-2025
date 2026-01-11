@@ -2,7 +2,7 @@ import math
 from abc import abstractmethod
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Iterable, TypeVar
+from typing import TypeVar
 
 import pandas as pd
 from shapely import affinity
@@ -58,25 +58,6 @@ def _create_initial_tree_polygon() -> Polygon:
 
 
 BASE_TREE: Polygon = _create_initial_tree_polygon()
-_ROTATED_BASE_CACHE: dict[float, Polygon] = {}
-
-
-def warmup_rotation_cache(angles: Iterable[float]) -> None:
-    """
-    Pre-populate the polygon rotation cache for efficient parallel execution.
-
-    Should be called before parallel pattern generation to ensure child
-    processes inherit the cache (Unix fork) or reduce redundant computation.
-
-    Args:
-        angles: Collection of angles in degrees to pre-compute
-    """
-    for angle in angles:
-        cache_key = round(angle, DECIMAL_PLACES)
-        if cache_key not in _ROTATED_BASE_CACHE:
-            _ROTATED_BASE_CACHE[cache_key] = affinity.rotate(
-                BASE_TREE, cache_key, origin=(0.0, 0.0)
-            )
 
 
 class BoundedGeometryMixin:
@@ -144,17 +125,8 @@ class ChristmasTree(BoundedGeometryMixin):
     @cached_property
     def polygon(self) -> Polygon:
         """Return the transformed polygon for this tree."""
-        cache_key = round(self.angle, DECIMAL_PLACES)
-
-        if cache_key in _ROTATED_BASE_CACHE:
-            rotated = _ROTATED_BASE_CACHE[cache_key]
-        else:
-            rotated = affinity.rotate(BASE_TREE, cache_key, origin=(0.0, 0.0))
-            _ROTATED_BASE_CACHE[cache_key] = rotated
-
-        return affinity.translate(
-            rotated, xoff=self.center_x, yoff=self.center_y
-        )
+        poly = affinity.rotate(BASE_TREE, self.angle, origin=(0.0, 0.0))
+        return affinity.translate(poly, xoff=self.center_x, yoff=self.center_y)
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:

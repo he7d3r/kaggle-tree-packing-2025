@@ -20,13 +20,7 @@ import optuna
 from tqdm import tqdm
 
 from solution import Solution
-from trees import (
-    DECIMAL_PLACES,
-    ChristmasTree,
-    NTree,
-    ParticipantVisibleError,
-    warmup_rotation_cache,
-)
+from trees import DECIMAL_PLACES, ChristmasTree, NTree, ParticipantVisibleError
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -486,11 +480,6 @@ class BruteForceEvaluator(PatternEvaluator):
             param_name: tuple(float_range)
             for param_name, float_range in PARAM_GRID.items()
         }
-
-        # Pre-warm rotation cache for parallel execution efficiency
-        all_angles = set(param_grid["angle_1"]) | set(param_grid["angle_2"])
-        warmup_rotation_cache(all_angles)
-
         return tuple(
             TileConfig.from_params(
                 params["angle_1"], params["angle_2"], params["direction_12"]
