@@ -56,6 +56,7 @@ PARAM_GRID = {
     "direction_12": FloatRange(0.0, 180.0, 5.0),
 }
 OPTUNA_N_TRIALS = 200
+TOP_K = 5
 BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
 BISECTION_MIN_CLEARANCE = 10 * BISECTION_TOLERANCE
 
@@ -451,7 +452,7 @@ class PatternEvaluator:
 class BruteForceEvaluator(PatternEvaluator):
     """Brute force evaluator trying all discrete parameter combinations."""
 
-    def __init__(self, parallel: bool = True, top_k: int = 5) -> None:
+    def __init__(self, parallel: bool = True, top_k: int = 1) -> None:
         self.patterns = self.precompute_patterns(parallel=parallel)
         self.top_k = top_k
         self._elite_patterns: tuple[TilePattern, ...] = ()
@@ -519,7 +520,7 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         n_trials: int,
         seed: int,
         warm_start: Sequence[TilePattern] = (),
-        top_k: int = 5,
+        top_k: int = 1,
     ) -> None:
         self.param_grid = param_grid
         self.n_trials = n_trials
@@ -696,18 +697,22 @@ def get_default_solver(
     """
     if strategy == "hybrid":
         evaluator = HybridEvaluator(
-            brute=BruteForceEvaluator(parallel=parallel, top_k=5),
+            brute=BruteForceEvaluator(parallel=parallel, top_k=TOP_K),
             optuna=OptunaContinuousEvaluator(
                 param_grid=PARAM_GRID,
                 n_trials=OPTUNA_N_TRIALS,
+                top_k=TOP_K,
                 seed=seed,
             ),
         )
     elif strategy == "brute":
-        evaluator = BruteForceEvaluator(parallel=parallel)
+        evaluator = BruteForceEvaluator(parallel=parallel, top_k=TOP_K)
     elif strategy == "optuna":
         evaluator = OptunaContinuousEvaluator(
-            param_grid=PARAM_GRID, n_trials=OPTUNA_N_TRIALS, seed=seed
+            param_grid=PARAM_GRID,
+            n_trials=OPTUNA_N_TRIALS,
+            top_k=TOP_K,
+            seed=seed,
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy}")
