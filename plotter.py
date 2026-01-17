@@ -5,6 +5,7 @@ from typing import Callable, Iterator, Optional, Protocol, TypeVar
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.patches import Rectangle
 from numpy.typing import NDArray
@@ -300,3 +301,17 @@ class Plotter:
         x, y = tree.polygon.exterior.xy
         ax.plot(x, y, color=color)
         ax.fill(x, y, alpha=0.5, color=color)
+
+    def plot_summary(self) -> None:
+        df = pd.read_csv("summary.csv")
+        df.plot(
+            kind="line",
+            x="n",
+            figsize=(12, 12),
+            marker=".",
+            subplots=True,
+            grid=True,
+            title="Summary Statistics",
+        )
+        plt.tight_layout()
+        plt.savefig(self.output_dir / "summary_plots.png", dpi=150)

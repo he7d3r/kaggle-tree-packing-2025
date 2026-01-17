@@ -148,6 +148,11 @@ def parse_args() -> argparse.Namespace:
         help="Enable performance profiling",
     )
     parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Plot summary statistics from summary.csv",
+    )
+    parser.add_argument(
         "--strategy",
         choices=["brute", "optuna", "hybrid"],
         default="hybrid",
@@ -209,10 +214,14 @@ def main() -> None:
     if args.mlflow and not MLFLOW_AVAILABLE:
         raise RuntimeError("MLflow not installed")
 
+    strategy = args.strategy
+    parallel = not args.no_parallel
+    plotter = Plotter(parallel=parallel)
+    run = start_mlflow(args.run_name) if args.mlflow else None
+
     # If analyze flag is set, run analysis and exit
     if args.analyze:
         logger.info(f"Starting score analysis with pattern: {args.analyze}")
-        plotter = Plotter(parallel=not args.no_parallel)
 
         # Check if pattern contains wildcards
         if "*" in args.analyze or "?" in args.analyze or "[" in args.analyze:
@@ -242,10 +251,10 @@ def main() -> None:
 
         return
 
-    strategy = args.strategy
-    parallel = not args.no_parallel
-    plotter = Plotter(parallel=parallel)
-    run = start_mlflow(args.run_name) if args.mlflow else None
+    if args.summary:
+        logger.info("Plotting summary statistics from 'summary.csv'")
+        plotter.plot_summary()
+        return
 
     try:
         with profile_if(args.profile, "output.prof"):
