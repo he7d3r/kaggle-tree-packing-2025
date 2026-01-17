@@ -51,11 +51,6 @@ class FloatRange:
             yield value
 
 
-PARAM_GRID = {
-    "angle_1": FloatRange(0.0, 180.0, 5.0),
-    "angle_2": FloatRange(0.0, 180.0, 5.0),
-    "direction_12": FloatRange(0.0, 180.0, 5.0),
-}
 OPTUNA_N_TRIALS = 200
 TOP_K = 5
 BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
@@ -185,43 +180,27 @@ def _validate_trees(trees: tuple[ChristmasTree, ...]) -> NTree | None:
 
 
 @dataclass(frozen=True)
-class TreeSpec:
-    """Immutable specification of a single tree in a tile pattern."""
-
-    angle: float  # degrees
-
-
-@dataclass(frozen=True)
-class RelativeTransform:
-    """Immutable relative transformation between two trees in a tile pattern."""
-
-    from_idx: int
-    to_idx: int
-    direction: float  # degrees
-
-
-@dataclass(frozen=True)
 class TileConfig:
-    """Immutable tile configuration consisting of tree specs and relations."""
+    """
+    Immutable star topology tile configuration.
 
-    tree_specs: tuple[TreeSpec, ...]
-    relations: tuple[RelativeTransform, ...]
+    Tree 0 is the anchor (placed at origin).
+    Every other tree i is placed relative to tree 0
+    along direction directions[i-1].
+    """
 
-    @classmethod
-    def from_params(
-        cls, angle_1: float, angle_2: float, direction: float
-    ) -> "TileConfig":
-        """Construct a TileConfig from float parameters."""
-        return cls(
-            tree_specs=(TreeSpec(angle=angle_1), TreeSpec(angle=angle_2)),
-            relations=(
-                RelativeTransform(from_idx=0, to_idx=1, direction=direction),
-            ),
-        )
+    angles: tuple[float, ...]  # length = k
+    directions: tuple[float, ...]  # length = k-1
+
+    def __post_init__(self) -> None:
+        if len(self.angles) < 1:
+            raise ValueError("TileConfig must contain at least one tree")
+        if len(self.directions) != len(self.angles) - 1:
+            raise ValueError("directions must have length len(angles) - 1")
 
     def build_composite_n_tree(self) -> NTree:
         """
-        Build a composite NTree using TreeSpec and RelativeTransform.
+        Build a composite NTree using star topology placement.
 
         Tree 0 is anchored at the origin. Other trees are positioned
         relative to it using bisection along a direction ray.
@@ -229,57 +208,85 @@ class TileConfig:
         Each placement validates collision-free status by constructing
         a partial NTree, whose __post_init__ validates no overlaps.
         """
-        if not self.tree_specs:
-            raise ValueError("TileConfig must contain at least one TreeSpec")
-
-        # Base tree at the origin
-        base_tree = ChristmasTree(
+        # Anchor tree
+        base = ChristmasTree(
             center_x=0.0,
             center_y=0.0,
-            angle=self.tree_specs[0].angle,
+            angle=self.angles[0],
         )
 
-        current_n_tree = NTree.leaf(base_tree)
+        current_n_tree = NTree.leaf(base)
 
-        for rel in self.relations:
-            ref_tree = current_n_tree.trees[rel.from_idx]
-
-            # Create target tree at origin (rotation only)
-            target = ChristmasTree(angle=self.tree_specs[rel.to_idx].angle)
-
+        for i, direction in enumerate(self.directions, start=1):
+            # Angle for the target tree
+            angle = self.angles[i]
             # Direction unit vector
-            theta = math.radians(rel.direction)
-            ux = math.cos(theta)
-            uy = math.sin(theta)
+            theta = math.radians(direction)
+            ux, uy = math.cos(theta), math.sin(theta)
 
-            def validate_placement(offset: float) -> NTree | None:
+            def validate(offset: float) -> NTree | None:
                 """
                 Validate tree placement at given offset.
 
                 Returns NTree if placement is valid, None if collision occurs.
                 """
-                candidate_tree = ChristmasTree(
-                    center_x=ref_tree.center_x + offset * ux,
-                    center_y=ref_tree.center_y + offset * uy,
-                    angle=target.angle,
+                candidate = ChristmasTree(
+                    center_x=base.center_x + offset * ux,
+                    center_y=base.center_y + offset * uy,
+                    angle=angle,
                 )
-                test_trees = current_n_tree.trees + (candidate_tree,)
-                return _validate_trees(test_trees)
+                return _validate_trees(current_n_tree.trees + (candidate,))
 
-            safe_upper_bound = max(ref_tree.side_length, target.side_length) * 2
+            safe_upper = (
+                max(
+                    base.side_length,
+                    ChristmasTree(angle=angle).side_length,
+                )
+                * 2
+            )
 
-            _, validated_n_tree = _bisect_minimal_valid(
+            # Use the validated NTree directly - no need to reconstruct
+            _, current_n_tree = _bisect_minimal_valid(
                 lower_bound=0.0,
-                upper_bound=safe_upper_bound,
-                validate=validate_placement,
+                upper_bound=safe_upper,
+                validate=validate,
                 tolerance=BISECTION_TOLERANCE,
                 min_clearance=BISECTION_MIN_CLEARANCE,
             )
 
-            # Use the validated NTree directly - no need to reconstruct
-            current_n_tree = validated_n_tree
-
         return current_n_tree
+
+
+@dataclass(frozen=True)
+class TileFamily:
+    """
+    Defines a family of star-topology tiles with fixed arity k.
+    """
+
+    k: int
+    angle_range: FloatRange
+    direction_range: FloatRange
+
+    @property
+    def param_names(self) -> tuple[str, ...]:
+        return (
+            *(f"angle_{i}" for i in range(self.k)),
+            *(f"dir_{i}" for i in range(1, self.k)),
+        )
+
+    def build_config(self, params: Mapping[str, float]) -> TileConfig:
+        angles = tuple(params[f"angle_{i}"] for i in range(self.k))
+        directions = tuple(params[f"dir_{i}"] for i in range(1, self.k))
+        return TileConfig(angles=angles, directions=directions)
+
+
+TILE_FAMILIES = (
+    TileFamily(
+        k=2,
+        angle_range=FloatRange(0.0, 180.0, 5.0),
+        direction_range=FloatRange(0.0, 180.0, 5.0),
+    ),
+)
 
 
 def _validate_horizontal_offset(n_tree: NTree, offset: float) -> NTree | None:
@@ -485,28 +492,34 @@ class BruteForceEvaluator(PatternEvaluator):
     def precompute_patterns(
         cls, *, parallel: bool = True
     ) -> tuple[TilePattern, ...]:
-        """Precompute all tile patterns from parameter grid."""
-        tile_configs = cls._build_tile_configs()
-        return _map(
-            TilePattern.from_tile_config,
-            tile_configs,
-            parallel=parallel,
-            desc="Pre-computing tile patterns",
-        )
+        """Precompute all tile patterns from TILE_FAMILIES parameter grid."""
+        patterns: list[TilePattern] = []
 
-    @classmethod
-    def _build_tile_configs(cls) -> tuple[TileConfig, ...]:
-        """Build all tile configurations from parameter grid."""
-        param_grid = {
-            param_name: tuple(float_range)
-            for param_name, float_range in PARAM_GRID.items()
-        }
-        return tuple(
-            TileConfig.from_params(
-                params["angle_1"], params["angle_2"], params["direction_12"]
+        for family in TILE_FAMILIES:
+            grid = {
+                name: tuple(
+                    family.angle_range
+                    if "angle" in name
+                    else family.direction_range
+                )
+                for name in family.param_names
+            }
+
+            configs = (
+                family.build_config(params)
+                for params in expand_param_grid(grid)
             )
-            for params in expand_param_grid(param_grid)
-        )
+
+            patterns.extend(
+                _map(
+                    TilePattern.from_tile_config,
+                    tuple(configs),
+                    parallel=parallel,
+                    desc=f"Pre-computing k={family.k} tile patterns",
+                )
+            )
+
+        return tuple(patterns)
 
     def evaluate(
         self, tree_count: int, construct: Callable[[int, TilePattern], Tiling]
@@ -536,13 +549,11 @@ class OptunaContinuousEvaluator(PatternEvaluator):
     def __init__(
         self,
         *,
-        param_grid: Mapping[str, FloatRange],
         n_trials: int,
         seed: int,
         warm_start: Sequence[TilePattern] = (),
         top_k: int = 1,
     ) -> None:
-        self.param_grid = param_grid
         self.n_trials = n_trials
         self.seed = seed
         self.top_k = top_k
@@ -574,7 +585,6 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         Optuna study per tree_count, while propagating warm-start patterns.
         """
         evaluator = OptunaContinuousEvaluator(
-            param_grid=self.param_grid,
             n_trials=self.n_trials,
             seed=self.seed,
             warm_start=self._warm_patterns,
@@ -599,24 +609,29 @@ class OptunaContinuousEvaluator(PatternEvaluator):
 
         def objective(trial: optuna.Trial) -> float:
             nonlocal best
-
-            angle_1 = trial.suggest_float(
-                "angle_1",
-                self.param_grid["angle_1"].start,
-                self.param_grid["angle_1"].end,
-            )
-            angle_2 = trial.suggest_float(
-                "angle_2",
-                self.param_grid["angle_2"].start,
-                self.param_grid["angle_2"].end,
-            )
-            direction_12 = trial.suggest_float(
-                "direction_12",
-                self.param_grid["direction_12"].start,
-                self.param_grid["direction_12"].end,
+            k = trial.suggest_categorical(
+                "k", [family.k for family in TILE_FAMILIES]
             )
 
-            tile_config = TileConfig.from_params(angle_1, angle_2, direction_12)
+            family = next(f for f in TILE_FAMILIES if f.k == k)
+
+            params = {}
+
+            for i in range(k):
+                params[f"angle_{i}"] = trial.suggest_float(
+                    f"angle_{i}",
+                    family.angle_range.start,
+                    family.angle_range.end,
+                )
+
+            for i in range(1, k):
+                params[f"dir_{i}"] = trial.suggest_float(
+                    f"dir_{i}",
+                    family.direction_range.start,
+                    family.direction_range.end,
+                )
+
+            tile_config = family.build_config(params)
             tile_pattern = TilePattern.from_tile_config(tile_config)
             tiling = construct(tree_count, tile_pattern)
 
@@ -637,13 +652,16 @@ class OptunaContinuousEvaluator(PatternEvaluator):
         # Enqueue warm-start trials
         for pattern in self._warm_patterns:
             cfg = pattern.config
-            study.enqueue_trial(
-                {
-                    "angle_1": cfg.tree_specs[0].angle,
-                    "angle_2": cfg.tree_specs[1].angle,
-                    "direction_12": cfg.relations[0].direction,
-                }
-            )
+            k = len(cfg.angles)
+
+            trial_params: dict[str, float | int] = {"k": k}
+
+            trial_params |= {f"angle_{i}": a for i, a in enumerate(cfg.angles)}
+            trial_params |= {
+                f"dir_{i}": d for i, d in enumerate(cfg.directions, start=1)
+            }
+
+            study.enqueue_trial(trial_params)
 
         study.optimize(
             objective, n_trials=self.n_trials, show_progress_bar=False
@@ -719,7 +737,6 @@ def get_default_solver(
         evaluator = HybridEvaluator(
             brute=BruteForceEvaluator(parallel=parallel, top_k=TOP_K),
             optuna=OptunaContinuousEvaluator(
-                param_grid=PARAM_GRID,
                 n_trials=OPTUNA_N_TRIALS,
                 top_k=TOP_K,
                 seed=seed,
@@ -729,7 +746,6 @@ def get_default_solver(
         evaluator = BruteForceEvaluator(parallel=parallel, top_k=TOP_K)
     elif strategy == "optuna":
         evaluator = OptunaContinuousEvaluator(
-            param_grid=PARAM_GRID,
             n_trials=OPTUNA_N_TRIALS,
             top_k=TOP_K,
             seed=seed,
@@ -798,15 +814,17 @@ class Solver:
 
             if summary is not None:
                 cfg = tiling.pattern.config
-                summary.add(
-                    {
-                        "n": tree_count,
-                        "score": n_tree.score,
-                        "angle_1": cfg.tree_specs[0].angle,
-                        "angle_2": cfg.tree_specs[1].angle,
-                        "direction_12": cfg.relations[0].direction,
-                    }
-                )
+                summary_row = {
+                    "n": tree_count,
+                    "score": n_tree.score,
+                    "k": len(cfg.angles),
+                    **{f"angle_{i}": a for i, a in enumerate(cfg.angles)},
+                    **{
+                        f"dir_{i}": d
+                        for i, d in enumerate(cfg.directions, start=1)
+                    },
+                }
+                summary.add(summary_row)
 
             n_trees.append(n_tree)
 
@@ -825,13 +843,12 @@ class Solver:
         )
 
         cfg = tiling.pattern.config
-
         summary_row = {
             "n": tree_count,
             "score": n_tree.score,
-            "angle_1": cfg.tree_specs[0].angle,
-            "angle_2": cfg.tree_specs[1].angle,
-            "direction_12": cfg.relations[0].direction,
+            "k": len(cfg.angles),
+            **{f"angle_{i}": a for i, a in enumerate(cfg.angles)},
+            **{f"dir_{i}": d for i, d in enumerate(cfg.directions, start=1)},
         }
 
         return n_tree, summary_row
@@ -847,7 +864,7 @@ class Solver:
         prev_col = 0
         max_row = 0
         max_col = 0
-        trees_per_tile = len(pattern.config.tree_specs)
+        trees_per_tile = len(pattern.config.angles)
 
         while len(positions) * trees_per_tile < tree_count:
             if prev_row == max_row and prev_col == max_col:
