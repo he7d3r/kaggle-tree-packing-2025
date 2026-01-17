@@ -17,6 +17,7 @@ from typing import (
 )
 
 import optuna
+import pandas as pd
 from tqdm import tqdm
 
 from solution import Solution
@@ -59,6 +60,25 @@ OPTUNA_N_TRIALS = 200
 TOP_K = 5
 BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
 BISECTION_MIN_CLEARANCE = 10 * BISECTION_TOLERANCE
+
+
+class SummaryCollector:
+    """Collect per-n solution summary rows."""
+
+    def __init__(self) -> None:
+        self._rows: list[dict[str, Any]] = []
+
+    def add(self, row: dict[str, Any]) -> None:
+        self._rows.append(row)
+
+    def to_dataframe(self) -> pd.DataFrame:
+        if not self._rows:
+            return pd.DataFrame()
+
+        return pd.DataFrame.from_records(self._rows).set_index("n").sort_index()
+
+    def to_csv(self, path: str, **kwargs) -> None:
+        self.to_dataframe().to_csv(path, **kwargs)
 
 
 class _SizedContainer(Protocol[T_co]):
@@ -727,17 +747,28 @@ class Solver:
         self._evaluator = evaluator
         self.parallel = parallel
 
-    def solve(self, problem_sizes: Sequence[int]) -> Solution:
+    def solve(
+        self,
+        problem_sizes: Sequence[int],
+        *,
+        summary: SummaryCollector | None = None,
+    ) -> Solution:
         """Solve the tree placement problem for specified tree counts."""
         if self._evaluator.execution_mode == "parallel":
-            n_trees = list(
-                _map(
-                    self._solve_for_tree_count,
-                    problem_sizes,
-                    parallel=self.parallel,
-                    desc="Placing trees",
-                )
+            results = _map(
+                self._solve_for_tree_count,
+                problem_sizes,
+                parallel=self.parallel,
+                desc="Placing trees",
             )
+
+            n_trees: list[NTree] = []
+
+            for n_tree, row in results:
+                n_trees.append(n_tree)
+                if summary is not None:
+                    summary.add(row)
+
             return Solution(n_trees=tuple(n_trees))
 
         # Sequential (warm-start capable)
@@ -761,20 +792,49 @@ class Solver:
             if warm_capable:
                 warm_patterns = evaluator.elite_patterns() or (tiling.pattern,)
 
-            n_trees.append(
-                tiling.pattern.build_n_tree(tiling.positions).take_first(
-                    tree_count
-                )
+            n_tree = tiling.pattern.build_n_tree(tiling.positions).take_first(
+                tree_count
             )
+
+            if summary is not None:
+                cfg = tiling.pattern.config
+                summary.add(
+                    {
+                        "n": tree_count,
+                        "score": n_tree.score,
+                        "angle_1": cfg.tree_specs[0].angle,
+                        "angle_2": cfg.tree_specs[1].angle,
+                        "direction_12": cfg.relations[0].direction,
+                    }
+                )
+
+            n_trees.append(n_tree)
 
         return Solution(n_trees=tuple(n_trees))
 
-    def _solve_for_tree_count(self, tree_count: int) -> NTree:
+    def _solve_for_tree_count(
+        self, tree_count: int
+    ) -> tuple[NTree, dict[str, object]]:
         """Solve placement for a single tree count."""
-        best = self._evaluator.evaluate(
+        tiling = self._evaluator.evaluate(
             tree_count=tree_count, construct=self._construct_tiling
         )
-        return best.pattern.build_n_tree(best.positions).take_first(tree_count)
+
+        n_tree = tiling.pattern.build_n_tree(tiling.positions).take_first(
+            tree_count
+        )
+
+        cfg = tiling.pattern.config
+
+        summary_row = {
+            "n": tree_count,
+            "score": n_tree.score,
+            "angle_1": cfg.tree_specs[0].angle,
+            "angle_2": cfg.tree_specs[1].angle,
+            "direction_12": cfg.relations[0].direction,
+        }
+
+        return n_tree, summary_row
 
     def _construct_tiling(
         self, tree_count: int, pattern: TilePattern

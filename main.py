@@ -14,7 +14,7 @@ os.environ["MPLBACKEND"] = "Agg"  # Non-interactive backend
 os.environ["MATPLOTLIB_BACKEND"] = "Agg"
 from plotter import Plotter
 from solution import Solution
-from solver import get_default_solver
+from solver import SummaryCollector, get_default_solver
 
 try:
     import mlflow
@@ -250,7 +250,14 @@ def main() -> None:
     try:
         with profile_if(args.profile, "output.prof"):
             solver = get_default_solver(strategy=strategy, parallel=parallel)
-            solution = solver.solve(problem_sizes=range(1, args.max + 1))
+            summary = SummaryCollector()
+
+            solution = solver.solve(
+                problem_sizes=range(1, args.max + 1), summary=summary
+            )
+
+            solution.to_dataframe().to_csv("submission.csv")
+            summary.to_csv("summary.csv")
 
         if args.plot_every > 0:
             plotter.plot(
