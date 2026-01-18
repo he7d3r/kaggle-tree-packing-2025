@@ -264,8 +264,6 @@ def main() -> None:
             solution = solver.solve(
                 problem_sizes=range(1, args.max + 1), summary=summary
             )
-
-            solution.to_dataframe().to_csv("submission.csv")
             summary.to_csv("summary.csv")
 
         if args.plot_every > 0:

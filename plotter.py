@@ -304,10 +304,11 @@ class Plotter:
 
     def plot_summary(self) -> None:
         df = pd.read_csv("summary.csv")
+
         df.plot(
             kind="line",
             x="n",
-            figsize=(12, 12),
+            figsize=(12, 3 * len(df.columns)),
             marker=".",
             subplots=True,
             grid=True,

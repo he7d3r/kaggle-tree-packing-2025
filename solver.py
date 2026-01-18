@@ -25,6 +25,12 @@ from trees import DECIMAL_PLACES, ChristmasTree, NTree, ParticipantVisibleError
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+
+OPTUNA_N_TRIALS = 500
+TOP_K = 10
+BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
+BISECTION_MIN_CLEARANCE = 10 * BISECTION_TOLERANCE
+
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
 T = TypeVar("T")
@@ -49,12 +55,6 @@ class FloatRange:
             if value > self.end:
                 break
             yield value
-
-
-OPTUNA_N_TRIALS = 200
-TOP_K = 5
-BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
-BISECTION_MIN_CLEARANCE = 10 * BISECTION_TOLERANCE
 
 
 class SummaryCollector:
@@ -105,13 +105,14 @@ def _bisect_minimal_valid(
     upper_bound: float,
     validate: Callable[[float], T | None],
     tolerance: float,
-    min_clearance: float = 0.0,
+    preferred_clearance: float = 0.0,
 ) -> tuple[float, T]:
     """
     Find minimal value in [lower_bound, upper_bound] where validate succeeds.
 
     Uses bisection search to find the smallest offset where validation
-    succeeds, ensuring a minimum clearance from the collision boundary.
+    succeeds, preferably with at least `preferred_clearance` distance from the
+    collision boundary.
 
     Args:
         lower_bound: Minimum offset to search (typically 0.0)
@@ -119,43 +120,56 @@ def _bisect_minimal_valid(
         validate: Function returning validated object if offset is valid,
                  None if invalid (e.g., causes collision)
         tolerance: Search precision (stop when range < tolerance)
-        min_clearance: Minimum distance the returned offset must be from the
-                      exact collision boundary, to guard against floating-point issues. Default is 0.0.
+        preferred_clearance: Preferable distance the returned offset must be
+                      from the exact collision boundary, to guard against floating-point issues. Default is 0.0.
 
     Returns:
         (safe_offset, validated_object)
-        The offset is guaranteed to be at least `min_clearance` away from
+        The offset is guaranteed to be at least `preferred_clearance` away from
         the exact collision boundary.
 
     Raises:
         ValueError: If upper_bound is invalid or if the offset with
-                   min_clearance is invalid.
+                   preferred_clearance is invalid.
     """
-    upper_result = validate(upper_bound)
-    if upper_result is None:
-        raise ValueError(f"Upper bound {upper_bound} is invalid.")
+    # Ensure we start with a valid upper bound
+    upper = upper_bound
+    upper_result = validate(upper)
+
+    for _ in range(2):  # hard cap
+        if upper_result is not None:
+            break
+        upper *= 2.0
+        upper_result = validate(upper)
+    else:
+        raise ValueError(
+            f"Could not find valid upper bound starting from {upper_bound}."
+        )
 
     low = lower_bound
-    high = upper_bound
+    high = upper
+    high_result = upper_result
 
+    # Bisection
     while high - low > tolerance:
         mid = (low + high) / 2
-        if validate(mid) is None:
+        mid_result = validate(mid)
+        if mid_result is None:
             low = mid
         else:
             high = mid
+            high_result = mid_result
 
-    # Ensure minimum clearance from boundary
-    safe_offset = high + min_clearance
-    safe_result = validate(safe_offset)
+    # Clearance handling
+    if preferred_clearance > 0.0:
+        safe_offset = high + preferred_clearance
+        safe_result = validate(safe_offset)
 
-    if safe_result is None:
-        raise ValueError(
-            f"Offset {safe_offset} (bisection result {high} + clearance {min_clearance}) "
-            f"is invalid. Upper bound {upper_bound} may be insufficient."
-        )
+        if safe_result is not None:
+            return safe_offset, safe_result
 
-    return safe_offset, safe_result
+    # Fallback: closest valid boundary solution
+    return high, high_result
 
 
 def _validate_trees(trees: tuple[ChristmasTree, ...]) -> NTree | None:
@@ -237,13 +251,17 @@ class TileConfig:
                 )
                 return _validate_trees(current_n_tree.trees + (candidate,))
 
-            safe_upper = (
-                max(
-                    base.side_length,
-                    ChristmasTree(angle=angle).side_length,
+            # Bounding radius of already placed trees relative to anchor
+            max_existing_radius = max(
+                math.hypot(
+                    tree.center_x - base.center_x,
+                    tree.center_y - base.center_y,
                 )
-                * 2
+                + tree.side_length
+                for tree in current_n_tree.trees
             )
+            candidate_radius = ChristmasTree(angle=angle).side_length
+            safe_upper = 2.0 * (max_existing_radius + candidate_radius)
 
             # Use the validated NTree directly - no need to reconstruct
             _, current_n_tree = _bisect_minimal_valid(
@@ -251,7 +269,7 @@ class TileConfig:
                 upper_bound=safe_upper,
                 validate=validate,
                 tolerance=BISECTION_TOLERANCE,
-                min_clearance=BISECTION_MIN_CLEARANCE,
+                preferred_clearance=BISECTION_MIN_CLEARANCE,
             )
 
         return current_n_tree
@@ -283,8 +301,13 @@ class TileFamily:
 TILE_FAMILIES = (
     TileFamily(
         k=2,
-        angle_range=FloatRange(0.0, 180.0, 5.0),
-        direction_range=FloatRange(0.0, 180.0, 5.0),
+        angle_range=FloatRange(0.0, 180.0, 10.0),
+        direction_range=FloatRange(0.0, 180.0, 10.0),
+    ),
+    TileFamily(
+        k=3,
+        angle_range=FloatRange(0.0, 180.0, 25.0),
+        direction_range=FloatRange(0.0, 180.0, 25.0),
     ),
 )
 
@@ -377,7 +400,7 @@ class TileMetrics:
             upper_bound=safe_upper_bound,
             validate=partial(_validate_horizontal_offset, n_tree),
             tolerance=BISECTION_TOLERANCE,
-            min_clearance=BISECTION_MIN_CLEARANCE,
+            preferred_clearance=BISECTION_MIN_CLEARANCE,
         )
 
         # Find minimal vertical offset (dy)
@@ -388,7 +411,7 @@ class TileMetrics:
                 _validate_vertical_offset, n_tree, horizontal_n_tree
             ),
             tolerance=BISECTION_TOLERANCE,
-            min_clearance=BISECTION_MIN_CLEARANCE,
+            preferred_clearance=BISECTION_MIN_CLEARANCE,
         )
 
         return cls(width=width, height=height, dx=dx, dy=dy)
