@@ -26,7 +26,6 @@ from trees import DECIMAL_PLACES, ChristmasTree, NTree, ParticipantVisibleError
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-OPTUNA_N_TRIALS = 300
 TOP_K = 20
 BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
 BISECTION_MIN_CLEARANCE = 30 * BISECTION_TOLERANCE
@@ -746,7 +745,11 @@ def expand_param_grid(
 
 
 def get_default_solver(
-    *, strategy: str = "hybrid", parallel: bool = True, seed: int = 42
+    *,
+    strategy: str = "hybrid",
+    parallel: bool = True,
+    seed: int = 42,
+    n_trials: int = 2,
 ) -> "Solver":
     """
     Create solver with specified strategy.
@@ -755,23 +758,20 @@ def get_default_solver(
         strategy: "brute", "optuna" or "hybrid" (default)
         parallel: Enable multiprocessing
         seed: Random seed for Optuna
+        n_trials: Number of Optuna trials (default: 2)
     """
     if strategy == "hybrid":
         evaluator = HybridEvaluator(
             brute=BruteForceEvaluator(parallel=parallel, top_k=TOP_K),
             optuna=OptunaContinuousEvaluator(
-                n_trials=OPTUNA_N_TRIALS,
-                top_k=TOP_K,
-                seed=seed,
+                n_trials=n_trials, top_k=TOP_K, seed=seed
             ),
         )
     elif strategy == "brute":
         evaluator = BruteForceEvaluator(parallel=parallel, top_k=TOP_K)
     elif strategy == "optuna":
         evaluator = OptunaContinuousEvaluator(
-            n_trials=OPTUNA_N_TRIALS,
-            top_k=TOP_K,
-            seed=seed,
+            n_trials=n_trials, top_k=TOP_K, seed=seed
         )
     else:
         raise ValueError(f"Unknown strategy: {strategy}")

@@ -186,6 +186,12 @@ def parse_args() -> argparse.Namespace:
         default="hybrid",
         help="Solver strategy to use (default: hybrid)",
     )
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=2,
+        help="Number of Optuna trials (default: 2)",
+    )
 
     try:
         return parser.parse_known_args()[0]
@@ -198,6 +204,7 @@ def parse_args() -> argparse.Namespace:
             sizes="1-200",
             no_parallel=False,
             analyze=False,
+            trials=2,
         )
 
 
@@ -289,7 +296,9 @@ def main() -> None:
         logger.info(f"Solving {len(problem_sizes)} tree sizes: {args.sizes}")
 
         with profile_if(args.profile, "output.prof"):
-            solver = get_default_solver(strategy=strategy, parallel=parallel)
+            solver = get_default_solver(
+                strategy=strategy, parallel=parallel, n_trials=args.trials
+            )
             summary = SummaryCollector()
 
             solution = solver.solve(
