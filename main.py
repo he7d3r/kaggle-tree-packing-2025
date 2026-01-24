@@ -23,7 +23,6 @@ try:
 except ImportError:
     MLFLOW_AVAILABLE = False
 
-DEFAULT_MAX_TREE_COUNT = 200
 OUTPUT_FILE = "submission.csv"
 TRACKING_URI = "sqlite:///mlruns.db"
 EXPERIMENT_NAME = "Christmas Tree Packing"
@@ -59,6 +58,35 @@ def get_git_run_name() -> str:
 
 
 DEFAULT_RUN_NAME = get_git_run_name()
+
+
+def parse_ranges(spec: str) -> list[int]:
+    """Parse range specification into sorted list of unique integers.
+
+    Args:
+        spec: Comma-separated numbers and ranges (e.g., "1-5,7,10-12")
+
+    Returns:
+        Sorted list of unique integers
+
+    Examples:
+        >>> parse_ranges("1-5")
+        [1, 2, 3, 4, 5]
+        >>> parse_ranges("1,3,5-7")
+        [1, 3, 5, 6, 7]
+    """
+    numbers = set()
+
+    for part in spec.split(","):
+        part = part.strip()
+
+        if "-" in part:
+            start, end = map(int, part.split("-"))
+            numbers.update(range(start, end + 1))
+        else:
+            numbers.add(int(part))
+
+    return sorted(numbers)
 
 
 @contextmanager
@@ -119,12 +147,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--max",
-        type=int,
-        default=DEFAULT_MAX_TREE_COUNT,
+        "--sizes",
+        type=str,
+        default="1-200",
         help=(
-            "Maximum number of trees to solve "
-            f"(default: {DEFAULT_MAX_TREE_COUNT})"
+            "Tree sizes to solve as ranges/numbers. "
+            "Examples: '1-200', '1,3,5-7'. Default: '1-200'"
         ),
     )
     parser.add_argument(
@@ -135,7 +163,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--analyze",
         nargs="?",
-        const="submission.csv",  # Default when --analyze is used without argument
+        const="submission.csv",
         help=(
             "Run score analysis and create plots from CSV file(s). "
             "Accepts a single file path or a glob pattern (e.g., '*.csv'). "
@@ -167,7 +195,7 @@ def parse_args() -> argparse.Namespace:
             run_name=DEFAULT_RUN_NAME,
             draft=False,
             plot_every=10,
-            max=DEFAULT_MAX_TREE_COUNT,
+            sizes="1-200",
             no_parallel=False,
             analyze=False,
         )
@@ -257,12 +285,15 @@ def main() -> None:
         return
 
     try:
+        problem_sizes = parse_ranges(args.sizes)
+        logger.info(f"Solving {len(problem_sizes)} tree sizes: {args.sizes}")
+
         with profile_if(args.profile, "output.prof"):
             solver = get_default_solver(strategy=strategy, parallel=parallel)
             summary = SummaryCollector()
 
             solution = solver.solve(
-                problem_sizes=range(1, args.max + 1), summary=summary
+                problem_sizes=problem_sizes, summary=summary
             )
             summary.to_csv("summary.csv")
 
