@@ -26,10 +26,10 @@ from trees import DECIMAL_PLACES, ChristmasTree, NTree, ParticipantVisibleError
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-OPTUNA_N_TRIALS = 500
-TOP_K = 10
+OPTUNA_N_TRIALS = 300
+TOP_K = 20
 BISECTION_TOLERANCE = 10 ** (-DECIMAL_PLACES)
-BISECTION_MIN_CLEARANCE = 10 * BISECTION_TOLERANCE
+BISECTION_MIN_CLEARANCE = 30 * BISECTION_TOLERANCE
 
 T_co = TypeVar("T_co", covariant=True)
 R = TypeVar("R")
@@ -301,13 +301,13 @@ class TileFamily:
 TILE_FAMILIES = (
     TileFamily(
         k=2,
-        angle_range=FloatRange(0.0, 180.0, 10.0),
-        direction_range=FloatRange(0.0, 180.0, 10.0),
+        angle_range=FloatRange(0.0, 180.0, 5.0),
+        direction_range=FloatRange(0.0, 180.0, 5.0),
     ),
     TileFamily(
         k=3,
-        angle_range=FloatRange(0.0, 180.0, 25.0),
-        direction_range=FloatRange(0.0, 180.0, 25.0),
+        angle_range=FloatRange(0.0, 180.0, 20.0),
+        direction_range=FloatRange(0.0, 180.0, 20.0),
     ),
 )
 
