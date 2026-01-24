@@ -192,6 +192,12 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="Number of Optuna trials (default: 2)",
     )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=2,
+        help="Number of top candidates to keep (default: 2)",
+    )
 
     try:
         return parser.parse_known_args()[0]
@@ -205,6 +211,7 @@ def parse_args() -> argparse.Namespace:
             no_parallel=False,
             analyze=False,
             trials=2,
+            top=2,
         )
 
 
@@ -297,7 +304,10 @@ def main() -> None:
 
         with profile_if(args.profile, "output.prof"):
             solver = get_default_solver(
-                strategy=strategy, parallel=parallel, n_trials=args.trials
+                strategy=strategy,
+                parallel=parallel,
+                n_trials=args.trials,
+                top_k=args.top,
             )
             summary = SummaryCollector()
 
