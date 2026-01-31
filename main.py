@@ -189,14 +189,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--trials",
         type=int,
-        default=2,
-        help="Number of Optuna trials (default: 2)",
+        default=300,
+        help="Number of Optuna trials (default: 300)",
     )
     parser.add_argument(
         "--top",
         type=int,
-        default=2,
-        help="Number of top candidates to keep (default: 2)",
+        default=20,
+        help="Number of top candidates to keep (default: 20)",
     )
 
     try:
@@ -210,8 +210,8 @@ def parse_args() -> argparse.Namespace:
             sizes="1-200",
             no_parallel=False,
             analyze=False,
-            trials=2,
-            top=2,
+            trials=300,
+            top=20,
         )
 
 
